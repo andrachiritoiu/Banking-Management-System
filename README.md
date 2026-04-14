@@ -87,7 +87,7 @@ src/
     ├── repository/   # JDBC layer (Stage II)
     ├── exception/    # Custom exceptions
     ├── util/         # Utilities (DB connection, config)
-    └── Main.java     # Application entry point
+    └── com.pao.project.bank.Main.java     # Application entry point
 ```
 
 The project follows a layered architecture:
@@ -242,7 +242,7 @@ The system supports a comprehensive set of banking operations, grouped by domain
 - Restrict operations on blocked cards  
 - Validate all transaction amounts  
 
-All functionalities are demonstrated in the `Main` class through a complete execution scenario.
+All functionalities are demonstrated in the `com.pao.project.bank.Main` class through a complete execution scenario.
 
 ---
 
@@ -250,7 +250,7 @@ All functionalities are demonstrated in the `Main` class through a complete exec
 
 The application uses the **Singleton pattern** for service classes.
 
-### Main Services
+### com.pao.project.bank.Main Services
 
 - `ClientService`: add, remove, search, list clients  
 
@@ -346,7 +346,7 @@ src/
     ├── util/
     │   ├── DBConnection.java             ← Connection management
     │   └── Config.java                  ← Config loading
-    └── Main.java
+    └── com.pao.project.bank.Main.java
 ```
 
 ## Persistence (Stage II)
