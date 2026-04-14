@@ -81,7 +81,7 @@ The application is designed with a layered architecture and focuses on clean dom
 
 ```text
 src/
-└── com/pao/proiect/banca/
+└── com/pao/project/bank/
     ├── model/        # Domain entities
     ├── service/      # Business logic (Singleton services)
     ├── repository/   # JDBC layer (Stage II)
@@ -297,7 +297,7 @@ Exceptions are both thrown and handled within the service layer.
 
 ```
 src/
-└── com/pao/proiect/banca/
+└── com/pao/project/bank/
     ├── model/
     │   ├── person/
     │   │   ├── Person.java               ← Abstract base
