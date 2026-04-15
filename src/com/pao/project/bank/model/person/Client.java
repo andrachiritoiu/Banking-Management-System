@@ -1,13 +1,20 @@
 package com.pao.project.bank.model.person;
 
+import com.pao.project.bank.exception.InvalidOperationException;
+
 import java.util.Objects;
 
-abstract public class Client extends Person implements Comparable<Client>{
+public abstract class Client extends Person implements Comparable<Client>{
     protected String clientCode;
     protected boolean active;
 
     public Client(int id, String email, String phoneNumber, String clientCode, boolean active) {
         super(id, email, phoneNumber);
+
+        if (clientCode == null || clientCode.isBlank()) {
+            throw new InvalidOperationException("Client code cannot be null or blank.");
+        }
+
         this.clientCode = clientCode;
         this.active = active;
     }
@@ -25,9 +32,9 @@ abstract public class Client extends Person implements Comparable<Client>{
     }
 
 
-    abstract public String getClientType();
+    public abstract String getClientType();
     //cnp-IndividualClient / cui-CorporateClient
-    abstract public String getFiscalIdentifier();
+    public abstract String getFiscalIdentifier();
 
 
     @Override
@@ -61,8 +68,19 @@ abstract public class Client extends Person implements Comparable<Client>{
 
     @Override
     public int compareTo(Client other) {
-        int cmp = this.getFullName().compareToIgnoreCase(other.getFullName());
-        if(cmp!=0){
+        if (other == null) {
+            throw new NullPointerException("Cannot compare Client with null.");
+        }
+
+        String name1 = this.getFullName();
+        String name2 = other.getFullName();
+
+        //null protection
+        if (name1 == null) name1 = "";
+        if (name2 == null) name2 = "";
+
+        int cmp = name1.compareToIgnoreCase(name2);
+        if (cmp != 0) {
             return cmp;
         }
 

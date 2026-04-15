@@ -1,8 +1,10 @@
 package com.pao.project.bank.model.person;
 
+import com.pao.project.bank.exception.InvalidOperationException;
+
 import java.util.Objects;
 
-abstract public class BankEmployee extends Person{
+public abstract class BankEmployee extends Person{
     protected String lastName;
     protected String firstName;
     protected String employeeCode;
@@ -11,6 +13,23 @@ abstract public class BankEmployee extends Person{
 
     public BankEmployee(int id, String email, String phoneNumber, String lastName, String firstName, String employeeCode, double salary, String branch) {
         super(id, email, phoneNumber);
+
+        if (lastName == null || lastName.isBlank()) {
+            throw new InvalidOperationException("Last name cannot be null or blank.");
+        }
+        if (firstName == null || firstName.isBlank()) {
+            throw new InvalidOperationException("First name cannot be null or blank.");
+        }
+        if (employeeCode == null || employeeCode.isBlank()) {
+            throw new InvalidOperationException("Employee code cannot be null or blank.");
+        }
+        if (salary < 0) {
+            throw new InvalidOperationException("Salary cannot be negative.");
+        }
+        if (branch == null || branch.isBlank()) {
+            throw new InvalidOperationException("Branch cannot be null or blank.");
+        }
+
         this.lastName = lastName;
         this.firstName = firstName;
         this.employeeCode = employeeCode;
@@ -24,6 +43,9 @@ abstract public class BankEmployee extends Person{
     }
 
     public void setLastName(String lastName) {
+        if (lastName == null || lastName.isBlank()) {
+            throw new InvalidOperationException("Last name cannot be null or blank.");
+        }
         this.lastName = lastName;
     }
 
@@ -32,6 +54,9 @@ abstract public class BankEmployee extends Person{
     }
 
     public void setFirstName(String firstName) {
+        if (firstName == null || firstName.isBlank()) {
+            throw new InvalidOperationException("First name cannot be null or blank.");
+        }
         this.firstName = firstName;
     }
 
@@ -40,6 +65,9 @@ abstract public class BankEmployee extends Person{
     }
 
     public void setEmployeeCode(String employeeCode) {
+        if (employeeCode == null || employeeCode.isBlank()) {
+            throw new InvalidOperationException("Employee code cannot be null or blank.");
+        }
         this.employeeCode = employeeCode;
     }
 
@@ -48,6 +76,9 @@ abstract public class BankEmployee extends Person{
     }
 
     public void setSalary(double salary) {
+        if (salary < 0) {
+            throw new InvalidOperationException("Salary cannot be negative.");
+        }
         this.salary = salary;
     }
 
@@ -56,11 +87,14 @@ abstract public class BankEmployee extends Person{
     }
 
     public void setBranch(String branch) {
+        if (branch == null || branch.isBlank()) {
+            throw new InvalidOperationException("Branch cannot be null or blank.");
+        }
         this.branch = branch;
     }
 
 
-    abstract public String getPosition();
+    public abstract String getPosition();
 
     @Override
     public String getRole() {
@@ -69,11 +103,13 @@ abstract public class BankEmployee extends Person{
 
     @Override
     public String getFullName() {
-        return this.lastName + " " + this.firstName;
+        return (lastName == null ? "" : lastName) + " " +
+                (firstName == null ? "" : firstName);
     }
 
     @Override
     public boolean equals(Object o) {
+        if (this == o) return true;
         if (!(o instanceof BankEmployee that)) return false;
         return Objects.equals(employeeCode, that.employeeCode);
     }

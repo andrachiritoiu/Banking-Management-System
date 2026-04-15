@@ -1,12 +1,24 @@
 package com.pao.project.bank.model.person;
 
-abstract public class Person {
+import com.pao.project.bank.exception.InvalidOperationException;
+
+public abstract class Person {
     protected int id;
     protected String email;
     protected String phoneNumber;
 
 
     public Person(int id, String email, String phoneNumber) {
+        if (id <= 0) {
+            throw new InvalidOperationException("Id must be positive.");
+        }
+        if (email == null || email.isBlank()) {
+            throw new InvalidOperationException("Email cannot be null or blank.");
+        }
+        if (phoneNumber == null || phoneNumber.isBlank()) {
+            throw new InvalidOperationException("Phone number cannot be null or blank.");
+        }
+
         this.id = id;
         this.email = email;
         this.phoneNumber = phoneNumber;
@@ -15,10 +27,6 @@ abstract public class Person {
 
     public int getId() {
         return id;
-    }
-
-    public void setId(int id) {
-        this.id = id;
     }
 
     public String getEmail() {

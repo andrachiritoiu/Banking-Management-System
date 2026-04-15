@@ -1,10 +1,17 @@
 package com.pao.project.bank.model.person;
 
+import com.pao.project.bank.exception.InvalidOperationException;
+
 public class FinancialAdvisor extends BankEmployee{
     private String specialization;
 
     public FinancialAdvisor(int id, String email, String phoneNumber, String lastName, String firstName, String employeeCode, double salary, String branch, String specialization) {
         super(id, email, phoneNumber, lastName, firstName, employeeCode, salary, branch);
+
+        if (specialization == null || specialization.isBlank()) {
+            throw new InvalidOperationException("Specialization cannot be null or blank.");
+        }
+
         this.specialization = specialization;
     }
 
@@ -13,6 +20,10 @@ public class FinancialAdvisor extends BankEmployee{
     }
 
     public void setSpecialization(String specialization) {
+        if (specialization == null || specialization.isBlank()) {
+            throw new InvalidOperationException("Specialization cannot be null or blank.");
+        }
+
         this.specialization = specialization;
     }
 
