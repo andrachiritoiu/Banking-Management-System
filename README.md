@@ -17,6 +17,7 @@
 
 </div>
 
+> **Romanian version available:** [README.ro.md](README.ro.md)
 ---
 
 ## Project Overview
