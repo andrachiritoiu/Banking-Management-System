@@ -59,6 +59,10 @@ public abstract class Account implements Transactable, Comparable<Account>{
     }
 
     protected void setBalance(double balance) {
+        if (balance < 0) {
+            throw new InvalidOperationException("Balance cannot be negative.");
+        }
+
         this.balance = balance;
     }
 
@@ -90,6 +94,10 @@ public abstract class Account implements Transactable, Comparable<Account>{
     public abstract void withdraw(double amount);
 
     public void closeAccount(){
+        if (balance != 0) {
+            throw new InvalidOperationException("Cannot close account with non-zero balance.");
+        }
+
         this.active = false;
     }
 
@@ -109,7 +117,7 @@ public abstract class Account implements Transactable, Comparable<Account>{
         validateActiveAccount();
         validateAmount(amount);
 
-        balance+=amount;
+        this.balance += amount;
     }
 
     @Override
@@ -126,7 +134,7 @@ public abstract class Account implements Transactable, Comparable<Account>{
 
     @Override
     public int compareTo(Account o) {
-        if (o == null) {
+        if (o == null || o.iban == null) {
             throw new NullPointerException("Compared account cannot be null.");
         }
         return this.iban.getCode().compareTo(o.iban.getCode());

@@ -1,6 +1,7 @@
 package com.pao.project.bank.model.account;
 
 import com.pao.project.bank.exception.InsufficientFundsException;
+import com.pao.project.bank.exception.InvalidOperationException;
 import com.pao.project.bank.model.IBAN;
 import com.pao.project.bank.model.enums.AccountType;
 import com.pao.project.bank.model.person.Client;
@@ -12,13 +13,36 @@ public class CurrentAccount extends Account{
 
     public CurrentAccount(int id, IBAN iban, double balance, String currency, Client owner, double monthlyFee) {
         super(id, iban, balance, currency, owner);
+
+        if (monthlyFee < 0) {
+            throw new InvalidOperationException("Monthly fee cannot be negative.");
+        }
+
         this.monthlyFee = monthlyFee;
     }
 
     public CurrentAccount(int id, IBAN iban, double balance, String currency, Client owner, boolean active, LocalDate openingDate, double monthlyFee) {
         super(id, iban, balance, currency, owner, active, openingDate);
+
+        if (monthlyFee < 0) {
+            throw new InvalidOperationException("Monthly fee cannot be negative.");
+        }
+
         this.monthlyFee = monthlyFee;
     }
+
+    public double getMonthlyFee() {
+        return monthlyFee;
+    }
+
+    public void setMonthlyFee(double monthlyFee) {
+        if (monthlyFee < 0) {
+            throw new InvalidOperationException("Monthly fee cannot be negative.");
+        }
+        this.monthlyFee = monthlyFee;
+    }
+
+
 
     public void applyMonthlyFee() {
         validateActiveAccount();
@@ -27,7 +51,7 @@ public class CurrentAccount extends Account{
             if (monthlyFee > balance) {
                 throw new InsufficientFundsException("Not enough money for monthly fee.");
             }
-            balance -= monthlyFee;
+            setBalance(getBalance() - monthlyFee);
         }
     }
 
@@ -44,7 +68,7 @@ public class CurrentAccount extends Account{
         if (amount > balance)
             throw new InsufficientFundsException("Not enough money.");
 
-        balance -= amount;
+        setBalance(getBalance() - amount);
     }
 
     @Override
