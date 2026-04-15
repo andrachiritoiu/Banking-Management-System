@@ -10,14 +10,6 @@
   </i>
 </p>
 
-<br/>
-
-[![Java](https://img.shields.io/badge/Java-17+-ED8B00?style=flat-square&logo=openjdk&logoColor=white)](https://java.com)
-[![JDBC](https://img.shields.io/badge/JDBC-Raw%20SQL-336791?style=flat-square&logo=postgresql&logoColor=white)]()
-[![Pattern](https://img.shields.io/badge/Pattern-Singleton%20%7C%20Repository-7B2FBE?style=flat-square)]()
-[![Audit](https://img.shields.io/badge/Audit-CSV%20Logging-brightgreen?style=flat-square)]()
-
-<br/>
 
 **[Descriere](#descriere)** · **[Funcționalități](#funcționalități)** · **[Acțiuni sistem](#1-acțiuni--interogări-posibile-în-sistem)** · **[Tipuri de obiecte](#2-tipuri-de-obiecte-din-domeniu)** · **[Arhitectură](#arhitectură)** · **[Model de domeniu](#model-de-domeniu)** · **[Colecții](#colecții)** · **[Excepții](#excepții-custom)** · **[Persistență](#persistență-etapa-ii)** · **[Tehnologii](#tehnologii)**
 
@@ -359,6 +351,11 @@ Fiecare serviciu are constructor `private` și metodă statică `getInstance()`:
 ---
 
 ## Tehnologii
+
+[![Java](https://img.shields.io/badge/Java-17+-ED8B00?style=flat-square&logo=openjdk&logoColor=white)](https://java.com)
+[![JDBC](https://img.shields.io/badge/JDBC-Raw%20SQL-336791?style=flat-square&logo=postgresql&logoColor=white)]()
+[![Pattern](https://img.shields.io/badge/Pattern-Singleton%20%7C%20Repository-7B2FBE?style=flat-square)]()
+[![Audit](https://img.shields.io/badge/Audit-CSV%20Logging-brightgreen?style=flat-square)]()
 
 | Tehnologie | Scop |
 |---|---|
