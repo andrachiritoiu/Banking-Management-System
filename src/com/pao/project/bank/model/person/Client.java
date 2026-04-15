@@ -16,10 +16,6 @@ abstract public class Client extends Person implements Comparable<Client>{
         return clientCode;
     }
 
-    public void setClientCode(String clientCode) {
-        this.clientCode = clientCode;
-    }
-
     public boolean isActive() {
         return active;
     }
@@ -42,6 +38,7 @@ abstract public class Client extends Person implements Comparable<Client>{
 
     @Override
     public boolean equals(Object o) {
+        if (this == o) return true;
         if (!(o instanceof Client client)) return false;
         return Objects.equals(clientCode, client.clientCode);
     }
