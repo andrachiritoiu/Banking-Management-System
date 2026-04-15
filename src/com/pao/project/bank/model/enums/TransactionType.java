@@ -2,6 +2,6 @@ package com.pao.project.bank.model.enums;
 
 public enum TransactionType {
     DEPOSIT,
-    WITHDRAWL,
+    WITHDRAWAL,
     TRANSFER
 }
