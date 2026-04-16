@@ -327,12 +327,14 @@ src/
     │       ├── CardStatus.java
     │       └── ChequeStatus.java
     ├── service/
-    │   ├── ClientService.java            ← Singleton
-    │   ├── AccountService.java           ← Singleton
-    │   ├── CardService.java              ← Singleton
-    │   ├── TransactionService.java       ← Singleton
-    │   ├── ReportService.java            ← Singleton
-    │   └── AuditService.java             ← Singleton · Thread-safe CSV writer
+    │   ├── ClientService.java               ← Singleton
+    |   ├── EmployeeService.java             ← Singleton
+    │   ├── AccountService.java              ← Singleton
+    │   ├── CardService.java                 ← Singleton
+    │   ├── TransactionService.java          ← Singleton
+    │   ├── ChequeService.java               ← Singleton
+    │   ├── ReportService.java               ← Singleton
+    │   └── AuditService.java                ← Singleton · Thread-safe · CSV
     ├── repository/
     │   ├── ClientRepository.java         ← Full CRUD
     │   ├── AccountRepository.java        ← Full CRUD + JOINs
