@@ -89,4 +89,13 @@ public class ClientService {
         return null;
     }
 
+
+    public List<Client> getClientsSortedByName() {
+        List<Client> result = new ArrayList<>(clients);
+
+        result.sort((c1, c2) -> c1.getFullName().compareToIgnoreCase(c2.getFullName()));
+
+        return result;
+    }
+
 }
