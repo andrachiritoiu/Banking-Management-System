@@ -12,6 +12,7 @@ public class Card {
     private final String cvv;
     private final LocalDate expirationDate;
     private final boolean contactless;
+
     private CardStatus status;
     private final Account account;
 
@@ -74,6 +75,10 @@ public class Card {
             status = CardStatus.EXPIRED;
         }
         return status;
+    }
+
+    public void setStatus(CardStatus status) {
+        this.status = status;
     }
 
     public Account getAccount() {
