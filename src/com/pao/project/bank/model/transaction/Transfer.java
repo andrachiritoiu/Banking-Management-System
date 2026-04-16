@@ -41,6 +41,13 @@ public class Transfer extends Transaction {
     }
 
     @Override
+    public boolean involvesAccount(String iban) {
+        return iban != null &&
+                (iban.equals(sourceAccount.getIban().getCode()) ||
+                        iban.equals(destinationAccount.getIban().getCode()));
+    }
+
+    @Override
     public String toString() {
         return "Transfer{" +
                 "id=" + id +

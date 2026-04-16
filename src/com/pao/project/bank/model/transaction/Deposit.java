@@ -24,6 +24,12 @@ public class Deposit extends Transaction{
     }
 
     @Override
+    public boolean involvesAccount(String iban) {
+        return iban != null &&
+                iban.equals(destinationAccount.getIban().getCode());
+    }
+
+    @Override
     public String getSummary() {
         return "Deposit of " + amount +
                 " into account " + destinationAccount.getIban();

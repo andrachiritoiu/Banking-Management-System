@@ -30,6 +30,13 @@ public class Withdrawal extends Transaction{
     }
 
     @Override
+    public boolean involvesAccount(String iban) {
+        return iban != null &&
+                iban.equals(sourceAccount.getIban().getCode());
+    }
+
+
+    @Override
     public String toString() {
         return "Withdrawal{" +
                 "id=" + id +

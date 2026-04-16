@@ -50,6 +50,7 @@ public abstract class Transaction {
     }
 
     public abstract String getSummary();
+    public abstract boolean involvesAccount(String iban);
 
     @Override
     public boolean equals(Object o) {
