@@ -150,9 +150,11 @@ src/
     │       └── ChequeStatus.java
     ├── service/
     │   ├── ClientService.java               ← Singleton
+    |   ├── EmployeeService.java             ← Singleton
     │   ├── AccountService.java              ← Singleton
     │   ├── CardService.java                 ← Singleton
     │   ├── TransactionService.java          ← Singleton
+    │   ├── ChequeService.java               ← Singleton
     │   ├── ReportService.java               ← Singleton
     │   └── AuditService.java                ← Singleton · Thread-safe · CSV
     ├── repository/                          ← Etapa II
