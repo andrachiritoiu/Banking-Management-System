@@ -18,7 +18,11 @@ public class AccountStatement {
     private final double initialBalance;
     private final double finalBalance;
 
-    public AccountStatement(Account account, List<Transaction> transactions) {
+    public AccountStatement(Account account,
+                            List<Transaction> transactions,
+                            double totalInflows,
+                            double totalOutflows,
+                            double finalBalance) {
         if (account == null) {
             throw new IllegalArgumentException("Account cannot be null.");
         }
@@ -26,26 +30,9 @@ public class AccountStatement {
         this.account = account;
         this.generatedAt = LocalDate.now();
         this.transactions = new ArrayList<>(transactions != null ? transactions : List.of());
-
-        double inflows = 0;
-        double outflows = 0;
-
-        for (Transaction transaction : this.transactions) {
-            if (transaction == null) {
-                continue;
-            }
-
-            if (transaction.getType() == TransactionType.DEPOSIT) {
-                inflows += transaction.getAmount();
-            } else if (transaction.getType() == TransactionType.WITHDRAWAL) {
-                outflows += transaction.getAmount();
-            }
-
-        }
-
-        this.totalInflows = inflows;
-        this.totalOutflows = outflows;
-        this.finalBalance = account.getBalance();
+        this.totalInflows = totalInflows;
+        this.totalOutflows = totalOutflows;
+        this.finalBalance = finalBalance;
         this.initialBalance = finalBalance - totalInflows + totalOutflows;
     }
 
