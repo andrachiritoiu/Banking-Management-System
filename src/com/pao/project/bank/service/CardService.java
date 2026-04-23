@@ -5,6 +5,7 @@ import com.pao.project.bank.model.account.Account;
 import com.pao.project.bank.model.enums.CardStatus;
 import com.pao.project.bank.model.transaction.Transaction;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -38,6 +39,27 @@ public class CardService {
         cardsByNumber.put(cardNumber, card);
     }
 
+    public Card issueCard(Account account) {
+        if (account == null) {
+            throw new IllegalArgumentException("Account cannot be null.");
+        }
+
+        Card card = new Card(account, LocalDate.now().plusYears(4), true);
+        issueCard(card);
+        return card;
+    }
+
+    public Card issueCard(Account account, LocalDate expirationDate, boolean contactless) {
+        if (account == null) {
+            throw new IllegalArgumentException("Account cannot be null.");
+        }
+
+        Card card = new Card(account, expirationDate, contactless);
+        issueCard(card);
+        return card;
+    }
+
+
     public Card findByCardNumber(String cardNumber) {
         if (cardNumber == null) {
             return null;
@@ -58,7 +80,7 @@ public class CardService {
             throw new IllegalArgumentException("Card is already blocked.");
         }
 
-        card.setStatus(CardStatus.BLOCKED);
+        card.block();
     }
 
     public void unblockCard(String cardNumber){
@@ -76,7 +98,7 @@ public class CardService {
             throw new IllegalArgumentException("Card is expired.");
         }
 
-        card.setStatus(CardStatus.ACTIVE);
+        card.unblock();
     }
 
     public List<Card> getAllCards(){
