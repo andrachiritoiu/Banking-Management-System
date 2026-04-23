@@ -18,6 +18,20 @@ public final class IBAN {
         this.code = normalized;
     }
 
+    public static IBAN generate() {
+        String prefix = "RO";
+        int checksum = (int) (Math.random() * 90 + 10);
+        String bank = "AAAA";
+        StringBuilder rest = new StringBuilder();
+
+        for (int i = 0; i < 16; i++) {
+            rest.append((int)(Math.random() * 10));
+        }
+
+        String iban = prefix + checksum + bank + rest;
+        return new IBAN(iban);
+    }
+
     public String getCode() {
         return code;
     }

@@ -325,7 +325,7 @@ public class Main {
 
                         CurrentAccount account = new CurrentAccount(
                                 readInt("ID: "),
-                                new IBAN(readLine("IBAN: ")),
+                                IBAN.generate(),
                                 readDouble("Initial balance: "),
                                 readLine("Currency: "),
                                 owner,
@@ -334,6 +334,7 @@ public class Main {
 
                         accountService.openAccount(account);
                         System.out.println("Current account opened.");
+                        System.out.println("Generated IBAN: " + account.getIban().getCode());
                     }
 
                     case 3 -> {
@@ -345,7 +346,7 @@ public class Main {
 
                         SavingsAccount account = new SavingsAccount(
                                 readInt("ID: "),
-                                new IBAN(readLine("IBAN: ")),
+                                IBAN.generate(),
                                 readDouble("Initial balance: "),
                                 readLine("Currency: "),
                                 owner,
