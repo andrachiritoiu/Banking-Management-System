@@ -22,6 +22,7 @@ public class AccountService {
     private int transactionIdCounter = 1;
     private final List<Account> accounts = new ArrayList<>();
     private final Map<String, Account> accountsByIban = new HashMap<>();
+    private final Map<String, String> ibanAliases = new HashMap<>();
 
     private AccountService() {}
 
@@ -50,6 +51,50 @@ public class AccountService {
         }
 
         return accountsByIban.get(iban);
+    }
+
+    public void setAlias(String alias, String iban) {
+        if (alias == null || alias.isBlank()) {
+            throw new IllegalArgumentException("Alias cannot be null or blank.");
+        }
+
+        if (iban == null) {
+            throw new IllegalArgumentException("IBAN cannot be null.");
+        }
+
+        if (!accountsByIban.containsKey(iban)) {
+            throw new IllegalArgumentException("Account not found.");
+        }
+
+        ibanAliases.put(normalizeAlias(alias), iban);
+    }
+
+    public Account findByAlias(String alias) {
+        if (alias == null || alias.isBlank()) {
+            throw new IllegalArgumentException("Alias cannot be null or blank.");
+        }
+
+        String iban = ibanAliases.get(normalizeAlias(alias));
+
+        if (iban == null) {
+            return null;
+        }
+
+        return accountsByIban.get(iban);
+    }
+
+    public void transferByAlias(String sourceIban, String alias, double amount) {
+        Account destinationAccount = findByAlias(alias);
+
+        if (destinationAccount == null) {
+            throw new IllegalArgumentException("Alias not found.");
+        }
+
+        transfer(sourceIban, destinationAccount.getIban().getCode(), amount);
+    }
+
+    public Map<String, String> getIbanAliases() {
+        return new HashMap<>(ibanAliases);
     }
 
     public void closeAccount(String iban){
@@ -253,5 +298,9 @@ public class AccountService {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Unsupported currency: " + currency);
         }
+    }
+
+    private String normalizeAlias(String alias) {
+        return alias.trim().toLowerCase();
     }
 }

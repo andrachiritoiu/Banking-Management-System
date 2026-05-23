@@ -312,9 +312,13 @@ public class Main {
                     8. Withdraw
                     9. Transfer
                     10. Exchange
-                    11. Show all transactions for account
-                    12. Show transactions for account by type
-                    13. Show transactions for account sorted by date
+                    11. Set IBAN alias
+                    12. Find account by alias
+                    13. Transfer by alias
+                    14. Show aliases
+                    15. Show all transactions for account
+                    16. Show transactions for account by type
+                    17. Show transactions for account sorted by date
                     0. Back
                     """);
 
@@ -411,9 +415,31 @@ public class Main {
                         System.out.println("Exchange completed.");
                     }
 
-                    case 11 -> transactionService.getTransactionsForAccount(readLine("IBAN: ")).forEach(System.out::println);
+                    case 11 -> {
+                        accountService.setAlias(
+                                readLine("Alias: "),
+                                readLine("IBAN: ")
+                        );
+                        System.out.println("Alias saved.");
+                    }
 
-                    case 12 -> {
+                    case 12 -> System.out.println(accountService.findByAlias(readLine("Alias: ")));
+
+                    case 13 -> {
+                        accountService.transferByAlias(
+                                readLine("Source IBAN: "),
+                                readLine("Destination alias: "),
+                                readDouble("Amount: ")
+                        );
+                        System.out.println("Transfer by alias completed.");
+                    }
+
+                    case 14 -> accountService.getIbanAliases()
+                            .forEach((alias, iban) -> System.out.println(alias + " -> " + iban));
+
+                    case 15 -> transactionService.getTransactionsForAccount(readLine("IBAN: ")).forEach(System.out::println);
+
+                    case 16 -> {
                         String iban = readLine("IBAN: ");
                         System.out.println("1. Deposit");
                         System.out.println("2. Withdrawal");
@@ -430,7 +456,7 @@ public class Main {
                         }
                     }
 
-                    case 13 -> transactionService.getTransactionsSortedByDate(readLine("IBAN: ")).forEach(System.out::println);
+                    case 17 -> transactionService.getTransactionsSortedByDate(readLine("IBAN: ")).forEach(System.out::println);
 
                     case 0 -> back = true;
                     default -> System.out.println("Invalid option.");
