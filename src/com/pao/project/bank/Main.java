@@ -26,6 +26,7 @@ import com.pao.project.bank.service.ReportService;
 import com.pao.project.bank.service.TransactionService;
 
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.Scanner;
 
 public class Main {
@@ -617,6 +618,13 @@ public class Main {
                     2. Total inflows for account
                     3. Total outflows for account
                     4. Transaction history for account
+                    5. Monthly account statement
+                    6. Total incoming by month
+                    7. Total outgoing by month
+                    8. Top clients by balance
+                    9. Transactions grouped by type
+                    10. Accounts grouped by currency
+                    11. Credits grouped by status
                     0. Back
                     """);
 
@@ -660,6 +668,57 @@ public class Main {
                         }
                         reportService.getTransactionHistory(acc).forEach(System.out::println);
                     }
+
+                    case 5 -> {
+                        Account acc = accountService.findByIban(readLine("IBAN: "));
+                        if (acc == null) {
+                            System.out.println("Account not found.");
+                            break;
+                        }
+                        YearMonth month = YearMonth.parse(readLine("Month (YYYY-MM): "));
+                        System.out.println(reportService.generateMonthlyAccountStatement(acc, month));
+                    }
+
+                    case 6 -> {
+                        Account acc = accountService.findByIban(readLine("IBAN: "));
+                        if (acc == null) {
+                            System.out.println("Account not found.");
+                            break;
+                        }
+                        reportService.calculateTotalIncomingByMonth(acc)
+                                .forEach((month, total) -> System.out.println(month + " -> " + total));
+                    }
+
+                    case 7 -> {
+                        Account acc = accountService.findByIban(readLine("IBAN: "));
+                        if (acc == null) {
+                            System.out.println("Account not found.");
+                            break;
+                        }
+                        reportService.calculateTotalOutgoingByMonth(acc)
+                                .forEach((month, total) -> System.out.println(month + " -> " + total));
+                    }
+
+                    case 8 -> reportService.getTopClientsByBalance(readInt("Limit: "))
+                            .forEach((client, balance) -> System.out.println(client.getFullName() + " -> " + balance));
+
+                    case 9 -> reportService.getTransactionsGroupedByType()
+                            .forEach((type, transactions) -> {
+                                System.out.println("\n" + type + ":");
+                                transactions.forEach(System.out::println);
+                            });
+
+                    case 10 -> reportService.getAccountsGroupedByCurrency()
+                            .forEach((currency, accounts) -> {
+                                System.out.println("\n" + currency + ":");
+                                accounts.forEach(System.out::println);
+                            });
+
+                    case 11 -> reportService.getCreditsGroupedByStatus()
+                            .forEach((status, credits) -> {
+                                System.out.println("\n" + status + ":");
+                                credits.forEach(System.out::println);
+                            });
 
                     case 0 -> back = true;
                     default -> System.out.println("Invalid option.");
