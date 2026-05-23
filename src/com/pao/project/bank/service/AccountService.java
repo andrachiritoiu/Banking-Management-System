@@ -1,9 +1,11 @@
 package com.pao.project.bank.service;
 
 import com.pao.project.bank.model.account.Account;
+import com.pao.project.bank.model.enums.Currency;
 import com.pao.project.bank.model.enums.TransactionType;
 import com.pao.project.bank.model.person.Client;
 import com.pao.project.bank.model.transaction.Deposit;
+import com.pao.project.bank.model.transaction.Exchange;
 import com.pao.project.bank.model.transaction.Transfer;
 import com.pao.project.bank.model.transaction.Withdrawal;
 
@@ -20,6 +22,7 @@ public class AccountService {
     private int transactionIdCounter = 1;
     private final List<Account> accounts = new ArrayList<>();
     private final Map<String, Account> accountsByIban = new HashMap<>();
+    private final Map<String, String> ibanAliases = new HashMap<>();
 
     private AccountService() {}
 
@@ -48,6 +51,50 @@ public class AccountService {
         }
 
         return accountsByIban.get(iban);
+    }
+
+    public void setAlias(String alias, String iban) {
+        if (alias == null || alias.isBlank()) {
+            throw new IllegalArgumentException("Alias cannot be null or blank.");
+        }
+
+        if (iban == null) {
+            throw new IllegalArgumentException("IBAN cannot be null.");
+        }
+
+        if (!accountsByIban.containsKey(iban)) {
+            throw new IllegalArgumentException("Account not found.");
+        }
+
+        ibanAliases.put(normalizeAlias(alias), iban);
+    }
+
+    public Account findByAlias(String alias) {
+        if (alias == null || alias.isBlank()) {
+            throw new IllegalArgumentException("Alias cannot be null or blank.");
+        }
+
+        String iban = ibanAliases.get(normalizeAlias(alias));
+
+        if (iban == null) {
+            return null;
+        }
+
+        return accountsByIban.get(iban);
+    }
+
+    public void transferByAlias(String sourceIban, String alias, double amount) {
+        Account destinationAccount = findByAlias(alias);
+
+        if (destinationAccount == null) {
+            throw new IllegalArgumentException("Alias not found.");
+        }
+
+        transfer(sourceIban, destinationAccount.getIban().getCode(), amount);
+    }
+
+    public Map<String, String> getIbanAliases() {
+        return new HashMap<>(ibanAliases);
     }
 
     public void closeAccount(String iban){
@@ -184,5 +231,76 @@ public class AccountService {
 
         //save
         transactionService.recordTransaction(transfer);
+    }
+
+
+    public Exchange exchange(String ibanSource, String ibanDestination, double sourceAmount, double exchangeRate) {
+        if (ibanSource == null || ibanDestination == null) {
+            throw new IllegalArgumentException("IBAN cannot be null.");
+        }
+
+        if (sourceAmount <= 0) {
+            throw new IllegalArgumentException("Exchange amount must be positive.");
+        }
+
+        if (exchangeRate <= 0) {
+            throw new IllegalArgumentException("Exchange rate must be positive.");
+        }
+
+        Account accountSource = accountsByIban.get(ibanSource);
+        Account accountDestination = accountsByIban.get(ibanDestination);
+
+        if (accountSource == null || accountDestination == null) {
+            throw new IllegalArgumentException("Account not found.");
+        }
+
+        if (ibanSource.equals(ibanDestination)) {
+            throw new IllegalArgumentException("Source and destination accounts must be different.");
+        }
+
+        Currency fromCurrency = parseCurrency(accountSource.getCurrency());
+        Currency toCurrency = parseCurrency(accountDestination.getCurrency());
+
+        if (fromCurrency == toCurrency) {
+            throw new IllegalArgumentException("Exchange must be made between accounts with different currencies.");
+        }
+
+        double destinationAmount = sourceAmount * exchangeRate;
+
+        accountSource.withdraw(sourceAmount);
+        accountDestination.deposit(destinationAmount);
+
+        Exchange exchange = new Exchange(
+                generateTransactionId(),
+                accountSource,
+                accountDestination,
+                sourceAmount,
+                destinationAmount,
+                fromCurrency,
+                toCurrency,
+                exchangeRate,
+                LocalDateTime.now(),
+                "Exchange operation"
+        );
+
+        transactionService.recordTransaction(exchange);
+
+        return exchange;
+    }
+
+    private Currency parseCurrency(String currency) {
+        if (currency == null || currency.isBlank()) {
+            throw new IllegalArgumentException("Currency cannot be null.");
+        }
+
+        try {
+            return Currency.valueOf(currency.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Unsupported currency: " + currency);
+        }
+    }
+
+    private String normalizeAlias(String alias) {
+        return alias.trim().toLowerCase();
     }
 }

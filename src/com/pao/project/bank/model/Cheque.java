@@ -1,5 +1,6 @@
 package com.pao.project.bank.model;
 
+import com.pao.project.bank.exception.ChequeExpiredException;
 import com.pao.project.bank.model.account.Account;
 import com.pao.project.bank.model.enums.ChequeStatus;
 import com.pao.project.bank.model.person.Client;
@@ -89,7 +90,7 @@ public class Cheque {
 
     public void cash() {
         if (getStatus() == ChequeStatus.EXPIRED) {
-            throw new IllegalStateException("Expired cheque cannot be cashed.");
+            throw new ChequeExpiredException("Expired cheque cannot be cashed.");
         }
         if (status == ChequeStatus.CANCELLED) {
             throw new IllegalStateException("Cancelled cheque cannot be cashed.");
@@ -103,7 +104,7 @@ public class Cheque {
 
     public void cancel() {
         if (getStatus() == ChequeStatus.EXPIRED) {
-            throw new IllegalStateException("Expired cheque cannot be cancelled.");
+            throw new ChequeExpiredException("Expired cheque cannot be cancelled.");
         }
         if (status == ChequeStatus.CASHED) {
             throw new IllegalStateException("Cashed cheque cannot be cancelled.");

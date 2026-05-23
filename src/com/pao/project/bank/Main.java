@@ -8,6 +8,8 @@ import com.pao.project.bank.model.account.Account;
 import com.pao.project.bank.model.account.CurrentAccount;
 import com.pao.project.bank.model.account.SavingsAccount;
 import com.pao.project.bank.model.enums.ChequeStatus;
+import com.pao.project.bank.model.enums.CreditStatus;
+import com.pao.project.bank.model.enums.CreditType;
 import com.pao.project.bank.model.enums.TransactionType;
 import com.pao.project.bank.model.person.BankTeller;
 import com.pao.project.bank.model.person.Client;
@@ -18,11 +20,13 @@ import com.pao.project.bank.service.AccountService;
 import com.pao.project.bank.service.CardService;
 import com.pao.project.bank.service.ChequeService;
 import com.pao.project.bank.service.ClientService;
+import com.pao.project.bank.service.CreditService;
 import com.pao.project.bank.service.EmployeeService;
 import com.pao.project.bank.service.ReportService;
 import com.pao.project.bank.service.TransactionService;
 
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.Scanner;
 
 public class Main {
@@ -35,6 +39,7 @@ public class Main {
     private static final TransactionService transactionService = TransactionService.getInstance();
     private static final ChequeService chequeService = ChequeService.getInstance();
     private static final ReportService reportService = ReportService.getInstance();
+    private static final CreditService creditService = CreditService.getInstance();
 
     public static void main(String[] args) {
         printHeader("BANKING MANAGEMENT SYSTEM");
@@ -101,7 +106,8 @@ public class Main {
                     4. Cards
                     5. Cheques
                     6. Reports
-                    7. View All Data
+                    7. Credits
+                    8. View All Data
                     0. Exit
                     """);
 
@@ -115,7 +121,8 @@ public class Main {
                     case 4 -> cardMenu();
                     case 5 -> chequeMenu();
                     case 6 -> reportMenu();
-                    case 7 -> showAllData();
+                    case 7 -> creditMenu();
+                    case 8 -> showAllData();
                     case 0 -> {
                         System.out.println("Exiting...");
                         running = false;
@@ -304,9 +311,14 @@ public class Main {
                     7. Deposit
                     8. Withdraw
                     9. Transfer
-                    10. Show all transactions for account
-                    11. Show transactions for account by type
-                    12. Show transactions for account sorted by date
+                    10. Exchange
+                    11. Set IBAN alias
+                    12. Find account by alias
+                    13. Transfer by alias
+                    14. Show aliases
+                    15. Show all transactions for account
+                    16. Show transactions for account by type
+                    17. Show transactions for account sorted by date
                     0. Back
                     """);
 
@@ -393,24 +405,58 @@ public class Main {
                         System.out.println("Transfer completed.");
                     }
 
-                    case 10 -> transactionService.getTransactionsForAccount(readLine("IBAN: ")).forEach(System.out::println);
+                    case 10 -> {
+                        accountService.exchange(
+                                readLine("Source IBAN: "),
+                                readLine("Destination IBAN: "),
+                                readDouble("Source amount: "),
+                                readDouble("Exchange rate: ")
+                        );
+                        System.out.println("Exchange completed.");
+                    }
 
                     case 11 -> {
+                        accountService.setAlias(
+                                readLine("Alias: "),
+                                readLine("IBAN: ")
+                        );
+                        System.out.println("Alias saved.");
+                    }
+
+                    case 12 -> System.out.println(accountService.findByAlias(readLine("Alias: ")));
+
+                    case 13 -> {
+                        accountService.transferByAlias(
+                                readLine("Source IBAN: "),
+                                readLine("Destination alias: "),
+                                readDouble("Amount: ")
+                        );
+                        System.out.println("Transfer by alias completed.");
+                    }
+
+                    case 14 -> accountService.getIbanAliases()
+                            .forEach((alias, iban) -> System.out.println(alias + " -> " + iban));
+
+                    case 15 -> transactionService.getTransactionsForAccount(readLine("IBAN: ")).forEach(System.out::println);
+
+                    case 16 -> {
                         String iban = readLine("IBAN: ");
                         System.out.println("1. Deposit");
                         System.out.println("2. Withdrawal");
                         System.out.println("3. Transfer");
+                        System.out.println("4. Exchange");
                         int typeOption = readInt("Choose type: ");
 
                         switch (typeOption) {
                             case 1 -> transactionService.getTransactionsForAccountByType(iban, TransactionType.DEPOSIT).forEach(System.out::println);
                             case 2 -> transactionService.getTransactionsForAccountByType(iban, TransactionType.WITHDRAWAL).forEach(System.out::println);
                             case 3 -> transactionService.getTransactionsForAccountByType(iban, TransactionType.TRANSFER).forEach(System.out::println);
+                            case 4 -> transactionService.getTransactionsForAccountByType(iban, TransactionType.EXCHANGE).forEach(System.out::println);
                             default -> System.out.println("Invalid type.");
                         }
                     }
 
-                    case 12 -> transactionService.getTransactionsSortedByDate(readLine("IBAN: ")).forEach(System.out::println);
+                    case 17 -> transactionService.getTransactionsSortedByDate(readLine("IBAN: ")).forEach(System.out::println);
 
                     case 0 -> back = true;
                     default -> System.out.println("Invalid option.");
@@ -598,6 +644,13 @@ public class Main {
                     2. Total inflows for account
                     3. Total outflows for account
                     4. Transaction history for account
+                    5. Monthly account statement
+                    6. Total incoming by month
+                    7. Total outgoing by month
+                    8. Top clients by balance
+                    9. Transactions grouped by type
+                    10. Accounts grouped by currency
+                    11. Credits grouped by status
                     0. Back
                     """);
 
@@ -642,6 +695,57 @@ public class Main {
                         reportService.getTransactionHistory(acc).forEach(System.out::println);
                     }
 
+                    case 5 -> {
+                        Account acc = accountService.findByIban(readLine("IBAN: "));
+                        if (acc == null) {
+                            System.out.println("Account not found.");
+                            break;
+                        }
+                        YearMonth month = YearMonth.parse(readLine("Month (YYYY-MM): "));
+                        System.out.println(reportService.generateMonthlyAccountStatement(acc, month));
+                    }
+
+                    case 6 -> {
+                        Account acc = accountService.findByIban(readLine("IBAN: "));
+                        if (acc == null) {
+                            System.out.println("Account not found.");
+                            break;
+                        }
+                        reportService.calculateTotalIncomingByMonth(acc)
+                                .forEach((month, total) -> System.out.println(month + " -> " + total));
+                    }
+
+                    case 7 -> {
+                        Account acc = accountService.findByIban(readLine("IBAN: "));
+                        if (acc == null) {
+                            System.out.println("Account not found.");
+                            break;
+                        }
+                        reportService.calculateTotalOutgoingByMonth(acc)
+                                .forEach((month, total) -> System.out.println(month + " -> " + total));
+                    }
+
+                    case 8 -> reportService.getTopClientsByBalance(readInt("Limit: "))
+                            .forEach((client, balance) -> System.out.println(client.getFullName() + " -> " + balance));
+
+                    case 9 -> reportService.getTransactionsGroupedByType()
+                            .forEach((type, transactions) -> {
+                                System.out.println("\n" + type + ":");
+                                transactions.forEach(System.out::println);
+                            });
+
+                    case 10 -> reportService.getAccountsGroupedByCurrency()
+                            .forEach((currency, accounts) -> {
+                                System.out.println("\n" + currency + ":");
+                                accounts.forEach(System.out::println);
+                            });
+
+                    case 11 -> reportService.getCreditsGroupedByStatus()
+                            .forEach((status, credits) -> {
+                                System.out.println("\n" + status + ":");
+                                credits.forEach(System.out::println);
+                            });
+
                     case 0 -> back = true;
                     default -> System.out.println("Invalid option.");
                 }
@@ -649,6 +753,119 @@ public class Main {
                 System.out.println("Error: " + e.getMessage());
             }
         }
+    }
+
+    private static void creditMenu() {
+        boolean back = false;
+
+        while (!back) {
+            System.out.println("""
+                    
+                    --- CREDIT MENU ---
+                    1. Create credit
+                    2. Approve credit
+                    3. Reject credit
+                    4. Pay installment
+                    5. Find credit by ID
+                    6. Show all credits
+                    7. Show credits for client
+                    8. Show credits by status
+                    0. Back
+                    """);
+
+            int op = readInt("Choose: ");
+
+            try {
+                switch (op) {
+                    case 1 -> {
+                        Client borrower = clientService.findByClientCode(readLine("Client code: "));
+                        if (borrower == null) {
+                            System.out.println("Client not found.");
+                            break;
+                        }
+
+                        System.out.println("1. Personal");
+                        System.out.println("2. Mortgage");
+                        System.out.println("3. Business");
+                        CreditType type = readCreditType(readInt("Credit type: "));
+
+                        System.out.println(creditService.createCredit(
+                                borrower,
+                                readLine("Target IBAN: "),
+                                type,
+                                readDouble("Principal amount: "),
+                                readDouble("Annual interest rate: "),
+                                readInt("Duration in months: ")
+                        ));
+                    }
+
+                    case 2 -> {
+                        creditService.approveCredit(readInt("Credit ID: "));
+                        System.out.println("Credit approved and amount deposited.");
+                    }
+
+                    case 3 -> {
+                        creditService.rejectCredit(readInt("Credit ID: "));
+                        System.out.println("Credit rejected.");
+                    }
+
+                    case 4 -> {
+                        creditService.payInstallment(
+                                readInt("Credit ID: "),
+                                readDouble("Amount: ")
+                        );
+                        System.out.println("Installment paid.");
+                    }
+
+                    case 5 -> System.out.println(creditService.findById(readInt("Credit ID: ")));
+                    case 6 -> creditService.getAllCredits().forEach(System.out::println);
+
+                    case 7 -> {
+                        Client client = clientService.findByClientCode(readLine("Client code: "));
+                        if (client == null) {
+                            System.out.println("Client not found.");
+                            break;
+                        }
+                        creditService.getCreditsForClient(client).forEach(System.out::println);
+                    }
+
+                    case 8 -> {
+                        System.out.println("1. Pending");
+                        System.out.println("2. Active");
+                        System.out.println("3. Paid");
+                        System.out.println("4. Rejected");
+                        System.out.println("5. Defaulted");
+                        CreditStatus status = readCreditStatus(readInt("Status: "));
+                        creditService.getCreditsByStatus(status).forEach(System.out::println);
+                    }
+
+                    case 0 -> back = true;
+                    default -> System.out.println("Invalid option.");
+                }
+            } catch (Exception e) {
+                System.out.println("Error: " + e.getMessage());
+            }
+        }
+    }
+
+    private static CreditType readCreditType(int option) {
+        return switch (option) {
+            case 1 -> CreditType.PERSONAL;
+            case 2 -> CreditType.MORTGAGE;
+            case 3 -> CreditType.BUSINESS;
+            default -> throw new IllegalArgumentException("Invalid credit type.");
+        };
+    }
+
+    private static CreditStatus readCreditStatus(int option) {
+        return switch (option) {
+            case 1 -> CreditStatus.PENDING;
+            case 2 -> CreditStatus.ACTIVE;
+            case 3 -> CreditStatus.PAID;
+            case 4 -> CreditStatus.REJECTED;
+            case 5 -> CreditStatus.DEFAULTED;
+            default -> throw new IllegalArgumentException("Invalid credit status.");
+        };
     }
 
     private static void showAllData() {
@@ -666,6 +883,9 @@ public class Main {
 
         System.out.println("\n- CHEQUES -");
         chequeService.getAllCheques().forEach(System.out::println);
+
+        System.out.println("\n- CREDITS -");
+        creditService.getAllCredits().forEach(System.out::println);
 
         System.out.println("\n- TRANSACTIONS -");
         transactionService.getAllTransactions().forEach(System.out::println);
