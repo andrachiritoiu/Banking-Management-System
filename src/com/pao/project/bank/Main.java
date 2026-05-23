@@ -304,9 +304,10 @@ public class Main {
                     7. Deposit
                     8. Withdraw
                     9. Transfer
-                    10. Show all transactions for account
-                    11. Show transactions for account by type
-                    12. Show transactions for account sorted by date
+                    10. Exchange
+                    11. Show all transactions for account
+                    12. Show transactions for account by type
+                    13. Show transactions for account sorted by date
                     0. Back
                     """);
 
@@ -393,24 +394,36 @@ public class Main {
                         System.out.println("Transfer completed.");
                     }
 
-                    case 10 -> transactionService.getTransactionsForAccount(readLine("IBAN: ")).forEach(System.out::println);
+                    case 10 -> {
+                        accountService.exchange(
+                                readLine("Source IBAN: "),
+                                readLine("Destination IBAN: "),
+                                readDouble("Source amount: "),
+                                readDouble("Exchange rate: ")
+                        );
+                        System.out.println("Exchange completed.");
+                    }
 
-                    case 11 -> {
+                    case 11 -> transactionService.getTransactionsForAccount(readLine("IBAN: ")).forEach(System.out::println);
+
+                    case 12 -> {
                         String iban = readLine("IBAN: ");
                         System.out.println("1. Deposit");
                         System.out.println("2. Withdrawal");
                         System.out.println("3. Transfer");
+                        System.out.println("4. Exchange");
                         int typeOption = readInt("Choose type: ");
 
                         switch (typeOption) {
                             case 1 -> transactionService.getTransactionsForAccountByType(iban, TransactionType.DEPOSIT).forEach(System.out::println);
                             case 2 -> transactionService.getTransactionsForAccountByType(iban, TransactionType.WITHDRAWAL).forEach(System.out::println);
                             case 3 -> transactionService.getTransactionsForAccountByType(iban, TransactionType.TRANSFER).forEach(System.out::println);
+                            case 4 -> transactionService.getTransactionsForAccountByType(iban, TransactionType.EXCHANGE).forEach(System.out::println);
                             default -> System.out.println("Invalid type.");
                         }
                     }
 
-                    case 12 -> transactionService.getTransactionsSortedByDate(readLine("IBAN: ")).forEach(System.out::println);
+                    case 13 -> transactionService.getTransactionsSortedByDate(readLine("IBAN: ")).forEach(System.out::println);
 
                     case 0 -> back = true;
                     default -> System.out.println("Invalid option.");

@@ -3,6 +3,7 @@ package com.pao.project.bank.service;
 import com.pao.project.bank.model.AccountStatement;
 import com.pao.project.bank.model.account.Account;
 import com.pao.project.bank.model.transaction.Deposit;
+import com.pao.project.bank.model.transaction.Exchange;
 import com.pao.project.bank.model.transaction.Transaction;
 import com.pao.project.bank.model.transaction.Transfer;
 import com.pao.project.bank.model.transaction.Withdrawal;
@@ -40,6 +41,12 @@ public class ReportService {
                     total+=transfer.getAmount();
                 }
             }
+
+            if(transaction instanceof Exchange exchange){
+                if(exchange.getDestinationAccount().equals(account)){
+                    total+=exchange.getDestinationAmount();
+                }
+            }
         }
         return total;
     }
@@ -62,6 +69,12 @@ public class ReportService {
             if(transaction instanceof Transfer transfer){
                 if(transfer.getSourceAccount().equals(account)){
                     total+=transfer.getAmount();
+                }
+            }
+
+            if(transaction instanceof Exchange exchange){
+                if(exchange.getSourceAccount().equals(account)){
+                    total+=exchange.getSourceAmount();
                 }
             }
         }
