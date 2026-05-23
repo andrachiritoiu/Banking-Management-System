@@ -1,5 +1,6 @@
 package com.pao.project.bank.model;
 
+import com.pao.project.bank.exception.CreditNotApprovedException;
 import com.pao.project.bank.exception.InvalidOperationException;
 import com.pao.project.bank.model.account.Account;
 import com.pao.project.bank.model.enums.CreditStatus;
@@ -130,7 +131,7 @@ public class Credit {
 
     public void payInstallment(double amount) {
         if (status != CreditStatus.ACTIVE) {
-            throw new InvalidOperationException("Only active credits can be paid.");
+            throw new CreditNotApprovedException("Only approved active credits can be paid.");
         }
 
         if (amount <= 0) {
