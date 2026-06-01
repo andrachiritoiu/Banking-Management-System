@@ -115,7 +115,7 @@ CREATE TABLE bank_tellers (
 
 -- Account hierarchy
 CREATE TABLE accounts (
-    id INT PRIMARY KEY AUTO_INCREMENT,
+    id INT PRIMARY KEY,
     iban VARCHAR(34) NOT NULL UNIQUE,
     account_type VARCHAR(30) NOT NULL,
     balance DECIMAL(15,2) NOT NULL,
