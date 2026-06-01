@@ -177,7 +177,7 @@ CREATE TABLE iban_aliases (
 
 -- Transaction hierarchy
 CREATE TABLE transactions (
-    id INT PRIMARY KEY AUTO_INCREMENT,
+    id INT PRIMARY KEY,
     transaction_type VARCHAR(30) NOT NULL,
     amount DECIMAL(15,2) NOT NULL,
     timestamp DATETIME NOT NULL,
