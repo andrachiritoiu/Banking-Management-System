@@ -15,7 +15,7 @@ services:
 
     volumes:
       - paoj_bank_data:/var/lib/mysql
-      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./resources/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
 
 volumes:
   paoj_bank_data:
