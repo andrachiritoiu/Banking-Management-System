@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Objects;
 
 public class AccountStatement {
+    private int id;
     private final Account account;
     private final LocalDate generatedAt;
     private final List<Transaction> transactions;
@@ -34,6 +35,46 @@ public class AccountStatement {
         this.totalOutflows = totalOutflows;
         this.finalBalance = finalBalance;
         this.initialBalance = finalBalance - totalInflows + totalOutflows;
+    }
+
+    public AccountStatement(int id,
+                            Account account,
+                            LocalDate generatedAt,
+                            List<Transaction> transactions,
+                            double totalInflows,
+                            double totalOutflows,
+                            double initialBalance,
+                            double finalBalance) {
+        if (id <= 0) {
+            throw new IllegalArgumentException("Account statement id must be positive.");
+        }
+        if (account == null) {
+            throw new IllegalArgumentException("Account cannot be null.");
+        }
+        if (generatedAt == null) {
+            throw new IllegalArgumentException("Generated date cannot be null.");
+        }
+
+        this.id = id;
+        this.account = account;
+        this.generatedAt = generatedAt;
+        this.transactions = new ArrayList<>(transactions != null ? transactions : List.of());
+        this.totalInflows = totalInflows;
+        this.totalOutflows = totalOutflows;
+        this.initialBalance = initialBalance;
+        this.finalBalance = finalBalance;
+    }
+
+    public int getId() {
+        return id;
+    }
+
+    public void setId(int id) {
+        if (id <= 0) {
+            throw new IllegalArgumentException("Account statement id must be positive.");
+        }
+
+        this.id = id;
     }
 
 
@@ -68,12 +109,12 @@ public class AccountStatement {
     @Override
     public boolean equals(Object o) {
         if (!(o instanceof AccountStatement that)) return false;
-        return Double.compare(totalInflows, that.totalInflows) == 0 && Double.compare(totalOutflows, that.totalOutflows) == 0 && Double.compare(initialBalance, that.initialBalance) == 0 && Double.compare(finalBalance, that.finalBalance) == 0 && Objects.equals(account, that.account) && Objects.equals(generatedAt, that.generatedAt) && Objects.equals(transactions, that.transactions);
+        return id == that.id && Double.compare(totalInflows, that.totalInflows) == 0 && Double.compare(totalOutflows, that.totalOutflows) == 0 && Double.compare(initialBalance, that.initialBalance) == 0 && Double.compare(finalBalance, that.finalBalance) == 0 && Objects.equals(account, that.account) && Objects.equals(generatedAt, that.generatedAt) && Objects.equals(transactions, that.transactions);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(account, generatedAt, transactions, totalInflows, totalOutflows, initialBalance, finalBalance);
+        return Objects.hash(id, account, generatedAt, transactions, totalInflows, totalOutflows, initialBalance, finalBalance);
     }
 
     @Override
@@ -81,6 +122,9 @@ public class AccountStatement {
         StringBuilder sb = new StringBuilder();
 
         sb.append("---- ACCOUNT STATEMENT ----\n");
+        if (id > 0) {
+            sb.append("ID: ").append(id).append("\n");
+        }
         sb.append("IBAN: ").append(account.getIban()).append("\n");
         sb.append("Generated at: ").append(generatedAt).append("\n");
 
