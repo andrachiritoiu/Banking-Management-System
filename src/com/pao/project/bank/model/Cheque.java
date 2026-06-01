@@ -44,6 +44,44 @@ public class Cheque {
         this.status = ChequeStatus.ISSUED;
     }
 
+    public Cheque(String series,
+                  Account issuerAccount,
+                  Client beneficiary,
+                  double amount,
+                  LocalDate issueDate,
+                  LocalDate expiryDate,
+                  ChequeStatus status) {
+        if (series == null || series.isBlank()) {
+            throw new IllegalArgumentException("Cheque series cannot be null or blank.");
+        }
+        if (issuerAccount == null) {
+            throw new IllegalArgumentException("Issuer account cannot be null.");
+        }
+        if (beneficiary == null) {
+            throw new IllegalArgumentException("Beneficiary cannot be null.");
+        }
+        if (amount <= 0) {
+            throw new IllegalArgumentException("Cheque amount must be positive.");
+        }
+        if (issueDate == null) {
+            throw new IllegalArgumentException("Issue date cannot be null.");
+        }
+        if (expiryDate == null) {
+            throw new IllegalArgumentException("Expiry date cannot be null.");
+        }
+        if (status == null) {
+            throw new IllegalArgumentException("Cheque status cannot be null.");
+        }
+
+        this.series = series;
+        this.issuerAccount = issuerAccount;
+        this.beneficiary = beneficiary;
+        this.amount = amount;
+        this.issueDate = issueDate;
+        this.expiryDate = expiryDate;
+        this.status = status;
+    }
+
     private String generateSeries() {
         Random random = new Random();
         int number = random.nextInt(90000000) + 10000000; //8
