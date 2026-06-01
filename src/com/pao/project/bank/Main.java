@@ -397,7 +397,7 @@ public class Main {
                     }
 
                     case 9 -> {
-                        accountService.transfer(
+                        accountService.transferJdbc(
                                 readLine("Source IBAN: "),
                                 readLine("Destination IBAN: "),
                                 readDouble("Amount: ")

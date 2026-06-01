@@ -8,7 +8,14 @@ import com.pao.project.bank.model.transaction.Deposit;
 import com.pao.project.bank.model.transaction.Exchange;
 import com.pao.project.bank.model.transaction.Transfer;
 import com.pao.project.bank.model.transaction.Withdrawal;
+import com.pao.project.bank.util.DatabaseConnection;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -17,7 +24,11 @@ import java.util.Map;
 
 public class AccountService {
     private static final AccountService INSTANCE = new AccountService();
+
     private final TransactionService transactionService = TransactionService.getInstance();
+
+    // CONEXIUNE JDBC PENTRU ETAPA 2
+    private final Connection connection = DatabaseConnection.getInstance().getConnection();
 
     private int transactionIdCounter = 1;
     private final List<Account> accounts = new ArrayList<>();
@@ -45,8 +56,8 @@ public class AccountService {
         accountsByIban.put(iban, account);
     }
 
-    public Account findByIban(String iban){
-        if(iban == null){
+    public Account findByIban(String iban) {
+        if (iban == null) {
             throw new IllegalArgumentException("IBAN cannot be null.");
         }
 
@@ -97,8 +108,8 @@ public class AccountService {
         return new HashMap<>(ibanAliases);
     }
 
-    public void closeAccount(String iban){
-        if(iban == null){
+    public void closeAccount(String iban) {
+        if (iban == null) {
             throw new IllegalArgumentException("IBAN cannot be null.");
         }
 
@@ -131,17 +142,16 @@ public class AccountService {
         return result;
     }
 
-
     private int generateTransactionId() {
         return transactionIdCounter++;
     }
 
-    public void deposit(String iban, double amount){
-        if(iban == null){
+    public void deposit(String iban, double amount) {
+        if (iban == null) {
             throw new IllegalArgumentException("IBAN cannot be null.");
         }
 
-        if(amount <= 0){
+        if (amount <= 0) {
             throw new IllegalArgumentException("Deposit amount must be positive.");
         }
 
@@ -151,27 +161,26 @@ public class AccountService {
             throw new IllegalArgumentException("Account not found.");
         }
 
-        //sold
         account.deposit(amount);
 
-        //new obj deposit
-        Deposit deposit = new Deposit(generateTransactionId(),
+        Deposit deposit = new Deposit(
+                generateTransactionId(),
                 TransactionType.DEPOSIT,
                 amount,
                 LocalDateTime.now(),
                 "Deposit operation",
-                account);
+                account
+        );
 
-        //save
         transactionService.recordTransaction(deposit);
     }
 
-    public void withdraw(String iban, double amount){
-        if(iban == null){
+    public void withdraw(String iban, double amount) {
+        if (iban == null) {
             throw new IllegalArgumentException("IBAN cannot be null.");
         }
 
-        if(amount <= 0){
+        if (amount <= 0) {
             throw new IllegalArgumentException("Withdrawal amount must be positive.");
         }
 
@@ -181,27 +190,27 @@ public class AccountService {
             throw new IllegalArgumentException("Account not found.");
         }
 
-        //sold
         account.withdraw(amount);
 
-        //new obj withdraw
-        Withdrawal withdrawal = new Withdrawal(generateTransactionId(),
+        Withdrawal withdrawal = new Withdrawal(
+                generateTransactionId(),
                 TransactionType.WITHDRAWAL,
                 amount,
                 LocalDateTime.now(),
                 "Withdraw operation",
-                account);
+                account
+        );
 
-        //save
         transactionService.recordTransaction(withdrawal);
     }
 
-    public void transfer(String ibanSource, String ibanDestination, double amount){
-        if(ibanDestination == null || ibanSource == null){
+    // etapa 1
+    public void transfer(String ibanSource, String ibanDestination, double amount) {
+        if (ibanDestination == null || ibanSource == null) {
             throw new IllegalArgumentException("IBAN cannot be null.");
         }
 
-        if(amount <= 0){
+        if (amount <= 0) {
             throw new IllegalArgumentException("Transfer amount must be positive.");
         }
 
@@ -216,23 +225,191 @@ public class AccountService {
             throw new IllegalArgumentException("Source and destination accounts must be different.");
         }
 
-        //sold
         accountSource.withdraw(amount);
         accountDestination.deposit(amount);
 
-        //new obj withdraw
-        Transfer transfer = new Transfer(generateTransactionId(),
+        Transfer transfer = new Transfer(
+                generateTransactionId(),
                 TransactionType.TRANSFER,
                 amount,
                 LocalDateTime.now(),
                 "Transfer operation",
                 accountDestination,
-                accountSource);
+                accountSource
+        );
 
-        //save
         transactionService.recordTransaction(transfer);
     }
 
+    // etapa 2
+    public void transferJdbc(String ibanSource, String ibanDestination, double amount) {
+        if (ibanSource == null || ibanDestination == null) {
+            throw new IllegalArgumentException("IBAN cannot be null.");
+        }
+
+        if (amount <= 0) {
+            throw new IllegalArgumentException("Transfer amount must be positive.");
+        }
+
+        if (ibanSource.equals(ibanDestination)) {
+            throw new IllegalArgumentException("Source and destination accounts must be different.");
+        }
+
+        try {
+            connection.setAutoCommit(false);
+
+            AccountDbData sourceAccount = getAccountForUpdate(ibanSource);
+            AccountDbData destinationAccount = getAccountForUpdate(ibanDestination);
+
+            if (sourceAccount.balance < amount) {
+                throw new SQLException("Insufficient funds.");
+            }
+
+            updateAccountBalance(sourceAccount.id, -amount);
+            updateAccountBalance(destinationAccount.id, amount);
+
+            int transactionId = insertTransferTransaction(amount);
+
+            insertTransferDetails(
+                    transactionId,
+                    sourceAccount.id,
+                    destinationAccount.id
+            );
+
+            connection.commit();
+            System.out.println("Transfer JDBC completed successfully.");
+
+        } catch (SQLException e) {
+            try {
+                connection.rollback();
+                System.out.println("Transfer JDBC failed. Rollback executed.");
+            } catch (SQLException rollbackException) {
+                throw new RuntimeException("Rollback failed.", rollbackException);
+            }
+
+            throw new RuntimeException("Transfer JDBC failed: " + e.getMessage(), e);
+
+        } finally {
+            try {
+                connection.setAutoCommit(true);
+            } catch (SQLException e) {
+                throw new RuntimeException("Could not reset autoCommit.", e);
+            }
+        }
+    }
+
+    private AccountDbData getAccountForUpdate(String iban) throws SQLException {
+        String sql = """
+                SELECT id, balance
+                FROM accounts
+                WHERE iban = ?
+                FOR UPDATE
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, iban);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    return new AccountDbData(
+                            resultSet.getInt("id"),
+                            resultSet.getDouble("balance")
+                    );
+                }
+            }
+        }
+
+        throw new SQLException("Account not found for IBAN: " + iban);
+    }
+
+    private void updateAccountBalance(int accountId, double amountChange) throws SQLException {
+        String sql = """
+                UPDATE accounts
+                SET balance = balance + ?
+                WHERE id = ?
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setDouble(1, amountChange);
+            statement.setInt(2, accountId);
+
+            int affectedRows = statement.executeUpdate();
+
+            if (affectedRows == 0) {
+                throw new SQLException("Could not update account with id: " + accountId);
+            }
+        }
+    }
+
+    private int insertTransferTransaction(double amount) throws SQLException {
+        String sql = """
+                INSERT INTO transactions (
+                    transaction_type,
+                    amount,
+                    `timestamp`,
+                    description
+                )
+                VALUES (?, ?, ?, ?)
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            statement.setString(1, TransactionType.TRANSFER.name());
+            statement.setDouble(2, amount);
+            statement.setTimestamp(3, Timestamp.valueOf(LocalDateTime.now()));
+            statement.setString(4, "Transfer operation");
+
+            int affectedRows = statement.executeUpdate();
+
+            if (affectedRows == 0) {
+                throw new SQLException("Could not insert transfer transaction.");
+            }
+
+            try (ResultSet generatedKeys = statement.getGeneratedKeys()) {
+                if (generatedKeys.next()) {
+                    return generatedKeys.getInt(1);
+                }
+            }
+        }
+
+        throw new SQLException("Could not get generated transaction id.");
+    }
+
+    private void insertTransferDetails(
+            int transactionId,
+            int sourceAccountId,
+            int destinationAccountId
+    ) throws SQLException {
+        String sql = """
+                INSERT INTO transfer_transactions (
+                    transaction_id,
+                    source_account_id,
+                    destination_account_id
+                )
+                VALUES (?, ?, ?)
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, transactionId);
+            statement.setInt(2, sourceAccountId);
+            statement.setInt(3, destinationAccountId);
+
+            int affectedRows = statement.executeUpdate();
+
+            if (affectedRows == 0) {
+                throw new SQLException("Could not insert transfer details.");
+            }
+        }
+    }
+
+    private static class AccountDbData {
+        private final int id;
+        private final double balance;
+
+        private AccountDbData(int id, double balance) {
+            this.id = id;
+            this.balance = balance;
+        }
+    }
 
     public Exchange exchange(String ibanSource, String ibanDestination, double sourceAmount, double exchangeRate) {
         if (ibanSource == null || ibanDestination == null) {
