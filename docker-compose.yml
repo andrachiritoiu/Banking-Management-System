@@ -1,0 +1,21 @@
+services:
+  mysql:
+    image: mysql:8.3
+    container_name: paoj-bank-mysql
+    restart: unless-stopped
+
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: paoj_bank
+      MYSQL_USER: pao_user
+      MYSQL_PASSWORD: pao_pass
+
+    ports:
+      - "3307:3306"
+
+    volumes:
+      - paoj_bank_data:/var/lib/mysql
+      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+
+volumes:
+  paoj_bank_data:
