@@ -1,115 +1,132 @@
 DROP TABLE IF EXISTS audit_logs;
+DROP TABLE IF EXISTS account_statement_transactions;
+DROP TABLE IF EXISTS account_statements;
+DROP TABLE IF EXISTS exchange_transactions;
+DROP TABLE IF EXISTS transfer_transactions;
+DROP TABLE IF EXISTS withdrawal_transactions;
+DROP TABLE IF EXISTS deposit_transactions;
 DROP TABLE IF EXISTS transactions;
 DROP TABLE IF EXISTS credits;
 DROP TABLE IF EXISTS cheques;
 DROP TABLE IF EXISTS cards;
 DROP TABLE IF EXISTS iban_aliases;
+DROP TABLE IF EXISTS current_accounts;
+DROP TABLE IF EXISTS savings_accounts;
 DROP TABLE IF EXISTS accounts;
+DROP TABLE IF EXISTS bank_tellers;
+DROP TABLE IF EXISTS financial_advisors;
+DROP TABLE IF EXISTS corporate_clients;
+DROP TABLE IF EXISTS individual_clients;
 DROP TABLE IF EXISTS employees;
 DROP TABLE IF EXISTS clients;
+DROP TABLE IF EXISTS persons;
+
+-- Person hierarchy
+CREATE TABLE persons (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    person_type VARCHAR(30) NOT NULL,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    phone_number VARCHAR(30) NOT NULL,
+
+    CONSTRAINT chk_persons_type
+        CHECK (person_type IN ('CLIENT', 'EMPLOYEE'))
+);
 
 CREATE TABLE clients (
-    id INT PRIMARY KEY AUTO_INCREMENT,
+    id INT PRIMARY KEY,
     client_code VARCHAR(50) NOT NULL UNIQUE,
     client_type VARCHAR(30) NOT NULL,
-    email VARCHAR(100) NOT NULL UNIQUE,
-    phone_number VARCHAR(30),
     active BOOLEAN NOT NULL DEFAULT TRUE,
 
-    first_name VARCHAR(100),
-    last_name VARCHAR(100),
-    cnp VARCHAR(20) UNIQUE,
-    birth_date DATE,
-
-    company_name VARCHAR(150),
-    cui VARCHAR(30) UNIQUE,
-    legal_representative_id INT,
-
-    CONSTRAINT fk_clients_legal_representative
-        FOREIGN KEY (legal_representative_id) REFERENCES clients(id),
+    CONSTRAINT fk_clients_person
+        FOREIGN KEY (id) REFERENCES persons(id)
+        ON DELETE CASCADE,
 
     CONSTRAINT chk_clients_type
-        CHECK (client_type IN ('INDIVIDUAL', 'CORPORATE')),
+        CHECK (client_type IN ('INDIVIDUAL', 'CORPORATE'))
+);
 
-    CONSTRAINT chk_clients_individual_fields
-        CHECK (
-            client_type <> 'INDIVIDUAL'
-            OR (
-                first_name IS NOT NULL
-                AND last_name IS NOT NULL
-                AND cnp IS NOT NULL
-                AND company_name IS NULL
-                AND cui IS NULL
-            )
-        ),
+CREATE TABLE individual_clients (
+    client_id INT PRIMARY KEY,
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
+    cnp VARCHAR(13) NOT NULL UNIQUE,
+    birth_date DATE NOT NULL,
 
-    CONSTRAINT chk_clients_corporate_fields
-        CHECK (
-            client_type <> 'CORPORATE'
-            OR (
-                company_name IS NOT NULL
-                AND cui IS NOT NULL
-                AND legal_representative_id IS NOT NULL
-                AND cnp IS NULL
-            )
-        )
+    CONSTRAINT fk_individual_clients_client
+        FOREIGN KEY (client_id) REFERENCES clients(id)
+        ON DELETE CASCADE
+);
+
+CREATE TABLE corporate_clients (
+    client_id INT PRIMARY KEY,
+    company_name VARCHAR(150) NOT NULL,
+    cui VARCHAR(30) NOT NULL UNIQUE,
+    legal_representative_id INT NOT NULL,
+
+    CONSTRAINT fk_corporate_clients_client
+        FOREIGN KEY (client_id) REFERENCES clients(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_corporate_clients_legal_representative
+        FOREIGN KEY (legal_representative_id) REFERENCES individual_clients(client_id)
 );
 
 CREATE TABLE employees (
-    id INT PRIMARY KEY AUTO_INCREMENT,
+    id INT PRIMARY KEY,
     employee_code VARCHAR(50) NOT NULL UNIQUE,
     employee_type VARCHAR(30) NOT NULL,
-    email VARCHAR(100) NOT NULL UNIQUE,
-    phone_number VARCHAR(30),
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
     salary DECIMAL(15,2) NOT NULL,
     branch VARCHAR(100) NOT NULL,
 
-    desk_number INT,
-    specialization VARCHAR(100),
+    CONSTRAINT fk_employees_person
+        FOREIGN KEY (id) REFERENCES persons(id)
+        ON DELETE CASCADE,
 
     CONSTRAINT chk_employees_type
         CHECK (employee_type IN ('BANK_TELLER', 'FINANCIAL_ADVISOR')),
 
     CONSTRAINT chk_employees_salary
-        CHECK (salary >= 0),
-
-    CONSTRAINT chk_employees_teller_fields
-        CHECK (
-            employee_type <> 'BANK_TELLER'
-            OR (
-                desk_number IS NOT NULL
-                AND specialization IS NULL
-            )
-        ),
-
-    CONSTRAINT chk_employees_advisor_fields
-        CHECK (
-            employee_type <> 'FINANCIAL_ADVISOR'
-            OR (
-                specialization IS NOT NULL
-                AND desk_number IS NULL
-            )
-        )
+        CHECK (salary >= 0)
 );
 
+CREATE TABLE financial_advisors (
+    employee_id INT PRIMARY KEY,
+    specialization VARCHAR(100) NOT NULL,
+
+    CONSTRAINT fk_financial_advisors_employee
+        FOREIGN KEY (employee_id) REFERENCES employees(id)
+        ON DELETE CASCADE
+);
+
+CREATE TABLE bank_tellers (
+    employee_id INT PRIMARY KEY,
+    desk_number INT NOT NULL,
+
+    CONSTRAINT fk_bank_tellers_employee
+        FOREIGN KEY (employee_id) REFERENCES employees(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT chk_bank_tellers_desk_number
+        CHECK (desk_number > 0)
+);
+
+-- Account hierarchy
 CREATE TABLE accounts (
     id INT PRIMARY KEY AUTO_INCREMENT,
     iban VARCHAR(34) NOT NULL UNIQUE,
+    account_type VARCHAR(30) NOT NULL,
     balance DECIMAL(15,2) NOT NULL,
     currency VARCHAR(10) NOT NULL,
-    account_type VARCHAR(30) NOT NULL,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     opening_date DATE NOT NULL,
     client_id INT NOT NULL,
 
-    monthly_fee DECIMAL(15,2),
-    interest_rate DECIMAL(5,2),
-    withdrawals_this_month INT,
-
     CONSTRAINT fk_accounts_client
-        FOREIGN KEY (client_id) REFERENCES clients(id),
+        FOREIGN KEY (client_id) REFERENCES clients(id)
+        ON DELETE CASCADE,
 
     CONSTRAINT chk_accounts_type
         CHECK (account_type IN ('CURRENT', 'SAVINGS')),
@@ -118,30 +135,35 @@ CREATE TABLE accounts (
         CHECK (currency IN ('RON', 'EUR', 'USD', 'GBP')),
 
     CONSTRAINT chk_accounts_balance
-        CHECK (balance >= 0),
+        CHECK (balance >= 0)
+);
 
-    CONSTRAINT chk_accounts_current_fields
-        CHECK (
-            account_type <> 'CURRENT'
-            OR (
-                monthly_fee IS NOT NULL
-                AND monthly_fee >= 0
-                AND interest_rate IS NULL
-                AND withdrawals_this_month IS NULL
-            )
-        ),
+CREATE TABLE current_accounts (
+    account_id INT PRIMARY KEY,
+    monthly_fee DECIMAL(15,2) NOT NULL,
 
-    CONSTRAINT chk_accounts_savings_fields
-        CHECK (
-            account_type <> 'SAVINGS'
-            OR (
-                interest_rate IS NOT NULL
-                AND interest_rate >= 0
-                AND withdrawals_this_month IS NOT NULL
-                AND withdrawals_this_month >= 0
-                AND monthly_fee IS NULL
-            )
-        )
+    CONSTRAINT fk_current_accounts_account
+        FOREIGN KEY (account_id) REFERENCES accounts(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT chk_current_accounts_monthly_fee
+        CHECK (monthly_fee >= 0)
+);
+
+CREATE TABLE savings_accounts (
+    account_id INT PRIMARY KEY,
+    interest_rate DECIMAL(5,2) NOT NULL,
+    withdrawals_this_month INT NOT NULL DEFAULT 0,
+
+    CONSTRAINT fk_savings_accounts_account
+        FOREIGN KEY (account_id) REFERENCES accounts(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT chk_savings_accounts_interest_rate
+        CHECK (interest_rate >= 0),
+
+    CONSTRAINT chk_savings_accounts_withdrawals
+        CHECK (withdrawals_this_month >= 0)
 );
 
 CREATE TABLE iban_aliases (
@@ -153,25 +175,164 @@ CREATE TABLE iban_aliases (
         ON DELETE CASCADE
 );
 
-CREATE TABLE cards (
+-- Transaction hierarchy
+CREATE TABLE transactions (
     id INT PRIMARY KEY AUTO_INCREMENT,
-    card_number VARCHAR(30) NOT NULL UNIQUE,
-    cvv VARCHAR(10) NOT NULL,
+    transaction_type VARCHAR(30) NOT NULL,
+    amount DECIMAL(15,2) NOT NULL,
+    timestamp DATETIME NOT NULL,
+    description VARCHAR(255) NOT NULL DEFAULT '',
+
+    CONSTRAINT chk_transactions_type
+        CHECK (transaction_type IN ('DEPOSIT', 'WITHDRAWAL', 'TRANSFER', 'EXCHANGE')),
+
+    CONSTRAINT chk_transactions_amount
+        CHECK (amount > 0)
+);
+
+CREATE TABLE deposit_transactions (
+    transaction_id INT PRIMARY KEY,
+    destination_account_id INT NOT NULL,
+
+    CONSTRAINT fk_deposit_transactions_transaction
+        FOREIGN KEY (transaction_id) REFERENCES transactions(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_deposit_transactions_destination_account
+        FOREIGN KEY (destination_account_id) REFERENCES accounts(id)
+);
+
+CREATE TABLE withdrawal_transactions (
+    transaction_id INT PRIMARY KEY,
+    source_account_id INT NOT NULL,
+
+    CONSTRAINT fk_withdrawal_transactions_transaction
+        FOREIGN KEY (transaction_id) REFERENCES transactions(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_withdrawal_transactions_source_account
+        FOREIGN KEY (source_account_id) REFERENCES accounts(id)
+);
+
+CREATE TABLE transfer_transactions (
+    transaction_id INT PRIMARY KEY,
+    source_account_id INT NOT NULL,
+    destination_account_id INT NOT NULL,
+
+    CONSTRAINT fk_transfer_transactions_transaction
+        FOREIGN KEY (transaction_id) REFERENCES transactions(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_transfer_transactions_source_account
+        FOREIGN KEY (source_account_id) REFERENCES accounts(id),
+
+    CONSTRAINT fk_transfer_transactions_destination_account
+        FOREIGN KEY (destination_account_id) REFERENCES accounts(id),
+
+    CONSTRAINT chk_transfer_transactions_different_accounts
+        CHECK (source_account_id <> destination_account_id)
+);
+
+CREATE TABLE exchange_transactions (
+    transaction_id INT PRIMARY KEY,
+    source_account_id INT NOT NULL,
+    destination_account_id INT NOT NULL,
+    destination_amount DECIMAL(15,2) NOT NULL,
+    from_currency VARCHAR(10) NOT NULL,
+    to_currency VARCHAR(10) NOT NULL,
+    exchange_rate DECIMAL(15,6) NOT NULL,
+
+    CONSTRAINT fk_exchange_transactions_transaction
+        FOREIGN KEY (transaction_id) REFERENCES transactions(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_exchange_transactions_source_account
+        FOREIGN KEY (source_account_id) REFERENCES accounts(id),
+
+    CONSTRAINT fk_exchange_transactions_destination_account
+        FOREIGN KEY (destination_account_id) REFERENCES accounts(id),
+
+    CONSTRAINT chk_exchange_transactions_destination_amount
+        CHECK (destination_amount > 0),
+
+    CONSTRAINT chk_exchange_transactions_rate
+        CHECK (exchange_rate > 0),
+
+    CONSTRAINT chk_exchange_transactions_currency
+        CHECK (
+            from_currency IN ('RON', 'EUR', 'USD', 'GBP')
+            AND to_currency IN ('RON', 'EUR', 'USD', 'GBP')
+            AND from_currency <> to_currency
+        ),
+
+    CONSTRAINT chk_exchange_transactions_different_accounts
+        CHECK (source_account_id <> destination_account_id)
+);
+
+-- Card
+CREATE TABLE cards (
+    card_number VARCHAR(16) PRIMARY KEY,
+    cvv VARCHAR(3) NOT NULL,
     expiration_date DATE NOT NULL,
     contactless BOOLEAN NOT NULL,
     status VARCHAR(30) NOT NULL,
     account_id INT NOT NULL,
 
     CONSTRAINT fk_cards_account
-        FOREIGN KEY (account_id) REFERENCES accounts(id),
+        FOREIGN KEY (account_id) REFERENCES accounts(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT chk_cards_number
+        CHECK (CHAR_LENGTH(card_number) = 16),
+
+    CONSTRAINT chk_cards_cvv
+        CHECK (CHAR_LENGTH(cvv) = 3),
 
     CONSTRAINT chk_cards_status
         CHECK (status IN ('ACTIVE', 'BLOCKED', 'EXPIRED'))
 );
 
-CREATE TABLE cheques (
+-- AccountStatement
+CREATE TABLE account_statements (
     id INT PRIMARY KEY AUTO_INCREMENT,
-    series VARCHAR(50) NOT NULL UNIQUE,
+    account_id INT NOT NULL,
+    generated_at DATE NOT NULL,
+    total_inflows DECIMAL(15,2) NOT NULL,
+    total_outflows DECIMAL(15,2) NOT NULL,
+    initial_balance DECIMAL(15,2) NOT NULL,
+    final_balance DECIMAL(15,2) NOT NULL,
+
+    CONSTRAINT fk_account_statements_account
+        FOREIGN KEY (account_id) REFERENCES accounts(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT chk_account_statements_totals
+        CHECK (
+            total_inflows >= 0
+            AND total_outflows >= 0
+            AND initial_balance >= 0
+            AND final_balance >= 0
+        )
+);
+
+CREATE TABLE account_statement_transactions (
+    statement_id INT NOT NULL,
+    transaction_id INT NOT NULL,
+
+    PRIMARY KEY (statement_id, transaction_id),
+
+    CONSTRAINT fk_statement_transactions_statement
+        FOREIGN KEY (statement_id) REFERENCES account_statements(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_statement_transactions_transaction
+        FOREIGN KEY (transaction_id) REFERENCES transactions(id)
+        ON DELETE CASCADE
+);
+
+-- Cheque
+CREATE TABLE cheques (
+    series VARCHAR(12) PRIMARY KEY,
     issuer_account_id INT NOT NULL,
     beneficiary_client_id INT NOT NULL,
     amount DECIMAL(15,2) NOT NULL,
@@ -180,10 +341,12 @@ CREATE TABLE cheques (
     status VARCHAR(30) NOT NULL,
 
     CONSTRAINT fk_cheques_issuer_account
-        FOREIGN KEY (issuer_account_id) REFERENCES accounts(id),
+        FOREIGN KEY (issuer_account_id) REFERENCES accounts(id)
+        ON DELETE CASCADE,
 
     CONSTRAINT fk_cheques_beneficiary_client
-        FOREIGN KEY (beneficiary_client_id) REFERENCES clients(id),
+        FOREIGN KEY (beneficiary_client_id) REFERENCES clients(id)
+        ON DELETE CASCADE,
 
     CONSTRAINT chk_cheques_amount
         CHECK (amount > 0),
@@ -195,6 +358,7 @@ CREATE TABLE cheques (
         CHECK (status IN ('ISSUED', 'CASHED', 'CANCELLED', 'EXPIRED'))
 );
 
+-- Credit
 CREATE TABLE credits (
     id INT PRIMARY KEY AUTO_INCREMENT,
     borrower_id INT NOT NULL,
@@ -208,10 +372,12 @@ CREATE TABLE credits (
     status VARCHAR(30) NOT NULL,
 
     CONSTRAINT fk_credits_borrower
-        FOREIGN KEY (borrower_id) REFERENCES clients(id),
+        FOREIGN KEY (borrower_id) REFERENCES clients(id)
+        ON DELETE CASCADE,
 
     CONSTRAINT fk_credits_target_account
-        FOREIGN KEY (target_account_id) REFERENCES accounts(id),
+        FOREIGN KEY (target_account_id) REFERENCES accounts(id)
+        ON DELETE CASCADE,
 
     CONSTRAINT chk_credits_type
         CHECK (credit_type IN ('PERSONAL', 'MORTGAGE', 'BUSINESS')),
@@ -234,82 +400,7 @@ CREATE TABLE credits (
         )
 );
 
-CREATE TABLE transactions (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    transaction_type VARCHAR(30) NOT NULL,
-    amount DECIMAL(15,2) NOT NULL,
-    timestamp DATETIME NOT NULL,
-    description VARCHAR(255),
-
-    source_account_id INT,
-    destination_account_id INT,
-
-    source_amount DECIMAL(15,2),
-    destination_amount DECIMAL(15,2),
-    from_currency VARCHAR(10),
-    to_currency VARCHAR(10),
-    exchange_rate DECIMAL(15,6),
-
-    CONSTRAINT fk_transactions_source_account
-        FOREIGN KEY (source_account_id) REFERENCES accounts(id),
-
-    CONSTRAINT fk_transactions_destination_account
-        FOREIGN KEY (destination_account_id) REFERENCES accounts(id),
-
-    CONSTRAINT chk_transactions_type
-        CHECK (transaction_type IN ('DEPOSIT', 'WITHDRAWAL', 'TRANSFER', 'EXCHANGE')),
-
-    CONSTRAINT chk_transactions_amount
-        CHECK (amount > 0),
-
-    CONSTRAINT chk_transactions_deposit_fields
-        CHECK (
-            transaction_type <> 'DEPOSIT'
-            OR (
-                source_account_id IS NULL
-                AND destination_account_id IS NOT NULL
-            )
-        ),
-
-    CONSTRAINT chk_transactions_withdrawal_fields
-        CHECK (
-            transaction_type <> 'WITHDRAWAL'
-            OR (
-                source_account_id IS NOT NULL
-                AND destination_account_id IS NULL
-            )
-        ),
-
-    CONSTRAINT chk_transactions_transfer_fields
-        CHECK (
-            transaction_type <> 'TRANSFER'
-            OR (
-                source_account_id IS NOT NULL
-                AND destination_account_id IS NOT NULL
-                AND source_account_id <> destination_account_id
-            )
-        ),
-
-    CONSTRAINT chk_transactions_exchange_fields
-        CHECK (
-            transaction_type <> 'EXCHANGE'
-            OR (
-                source_account_id IS NOT NULL
-                AND destination_account_id IS NOT NULL
-                AND source_account_id <> destination_account_id
-                AND source_amount IS NOT NULL
-                AND source_amount > 0
-                AND destination_amount IS NOT NULL
-                AND destination_amount > 0
-                AND from_currency IS NOT NULL
-                AND to_currency IS NOT NULL
-                AND from_currency <> to_currency
-                AND exchange_rate IS NOT NULL
-                AND exchange_rate > 0
-            )
-        )
-);
-
+-- Audit
 CREATE TABLE audit_logs (
     id INT PRIMARY KEY AUTO_INCREMENT,
     action_name VARCHAR(100) NOT NULL,
