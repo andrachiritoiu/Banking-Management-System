@@ -117,71 +117,104 @@ Proiectul este dezvoltat în **două etape progresive**:
 
 ### Structura proiectului
 
+Structura de mai jos reflectă fișierele existente acum în repository, inclusiv fișierele adăugate pentru Etapa II: repository-uri JDBC, servicii noi, schema SQL, configurare DB și audit.
+
+```text
+Banking-Management-System/
+|-- README.md
+|-- README.ro.md
+|-- docker-compose.yml
+|-- audit.csv
+|-- libs/
+|   `-- mysql-connector-j-9.7.0.jar
+|-- resources/
+|   |-- db.properties
+|   `-- schema.sql
+`-- src/
+    `-- com/pao/project/bank/
+        |-- Main.java
+        |-- exception/
+        |   |-- AccountClosedException.java
+        |   |-- CardBlockedException.java
+        |   |-- ChequeExpiredException.java
+        |   |-- CreditNotApprovedException.java
+        |   |-- InsufficientFundsException.java
+        |   |-- InvalidOperationException.java
+        |   `-- WithdrawalLimitExceededException.java
+        |-- model/
+        |   |-- AccountStatement.java
+        |   |-- Card.java
+        |   |-- Cheque.java
+        |   |-- Credit.java
+        |   |-- IBAN.java
+        |   |-- account/
+        |   |   |-- Account.java
+        |   |   |-- AccountFactory.java
+        |   |   |-- CurrentAccount.java
+        |   |   |-- SavingsAccount.java
+        |   |   `-- Transactable.java
+        |   |-- enums/
+        |   |   |-- AccountType.java
+        |   |   |-- CardStatus.java
+        |   |   |-- ChequeStatus.java
+        |   |   |-- CreditStatus.java
+        |   |   |-- CreditType.java
+        |   |   |-- Currency.java
+        |   |   `-- TransactionType.java
+        |   |-- person/
+        |   |   |-- BankEmployee.java
+        |   |   |-- BankTeller.java
+        |   |   |-- Client.java
+        |   |   |-- CorporateClient.java
+        |   |   |-- FinancialAdvisor.java
+        |   |   |-- IndividualClient.java
+        |   |   `-- Person.java
+        |   `-- transaction/
+        |       |-- Deposit.java
+        |       |-- Exchange.java
+        |       |-- Transaction.java
+        |       |-- Transfer.java
+        |       `-- Withdrawal.java
+        |-- repository/
+        |   |-- Repository.java
+        |   |-- AccountStatementRepository.java
+        |   |-- CardRepository.java
+        |   |-- ChequeRepository.java
+        |   |-- CreditRepository.java
+        |   |-- TransactionRepository.java
+        |   |-- account/
+        |   |   |-- CurrentAccountRepository.java
+        |   |   |-- IbanAliasRepository.java
+        |   |   `-- SavingsAccountRepository.java
+        |   |-- helper/
+        |   |   |-- AccountRepositoryHelper.java
+        |   |   |-- ClientRepositoryHelper.java
+        |   |   |-- EmployeeRepositoryHelper.java
+        |   |   |-- PersonRepositoryHelper.java
+        |   |   `-- TransactionRepositoryHelper.java
+        |   |-- person/
+        |   |   |-- BankTellerRepository.java
+        |   |   |-- CorporateClientRepository.java
+        |   |   |-- FinancialAdvisorRepository.java
+        |   |   `-- IndividualClientRepository.java
+        |   `-- transaction/
+        |       |-- DepositRepository.java
+        |       |-- ExchangeRepository.java
+        |       |-- TransferRepository.java
+        |       `-- WithdrawalRepository.java
+        |-- service/
+        |   |-- AccountService.java
+        |   |-- AuditService.java
+        |   |-- CardService.java
+        |   |-- ChequeService.java
+        |   |-- ClientService.java
+        |   |-- CreditService.java
+        |   |-- EmployeeService.java
+        |   |-- ReportService.java
+        |   `-- TransactionService.java
+        `-- util/
+            `-- DatabaseConnection.java
 ```
-src/
-└── com/pao/proiect/banca/
-    ├── Main.java
-    ├── model/
-    │   ├── person/
-    │   │   ├── Person.java                  ← Abstractă, getRol()
-    │   │   ├── Client.java                  ← Abstractă, implements Comparable<Client>
-    │   │   ├── IndividualClient.java         ← CNP, date personale
-    │   │   ├── CorporateClient.java          ← CUI + reprezentant legal (compoziție)
-    │   │   ├── BankEmployee.java             ← Abstractă
-    │   │   ├── BankTeller.java
-    │   │   └── FinancialAdvisor.java
-    │   ├── account/
-    │   │   ├── Account.java                 ← Abstractă, implements Tranzactionabila
-    │   │   ├── CurrentAccount.java
-    │   │   └── SavingsAccount.java           ← rataDobanda, aplicaDobanda(), limită retrageri
-    │   ├── transaction/
-    │   │   ├── Transaction.java             ← Abstractă + IMUTABILĂ (câmpuri final)
-    │   │   ├── Deposit.java
-    │   │   ├── Withdrawal.java
-    │   │   └── Transfer.java                ← contSursa + contDestinatie
-    │   ├── IBAN.java                        ← Obiect valoare imutabil
-    │   ├── Card.java                        ← Mașină de stări CardStatus
-    │   ├── AccountStatement.java            ← Raport agregat
-    │   ├── Cheque.java                      ← Instrument de plată cu ciclu de viață
-    │   └── enums/
-    │       ├── AccountType.java
-    │       ├── TransactionType.java
-    │       ├── CardStatus.java
-    │       └── ChequeStatus.java
-    ├── service/
-    │   ├── ClientService.java               ← Singleton
-    |   ├── EmployeeService.java             ← Singleton
-    │   ├── AccountService.java              ← Singleton
-    │   ├── CardService.java                 ← Singleton
-    │   ├── TransactionService.java          ← Singleton
-    │   ├── ChequeService.java               ← Singleton
-    │   ├── ReportService.java               ← Singleton
-    │   └── AuditService.java                ← Singleton · Thread-safe · CSV
-    ├── repository/                          ← Etapa II
-    │   ├── Repository.java                  ← Interfață generică <T, ID>
-    │   ├── ClientRepository.java
-    │   ├── AccountRepository.java
-    │   ├── CardRepository.java
-    │   └── TransactionRepository.java
-    ├── exception/
-    │   ├── InsufficientFundsException.java
-    │   ├── AccountClosedException.java
-    │   ├── AccountNotFoundException.java
-    │   ├── InvalidOperationException.java
-    │   ├── WithdrawalLimitExceededException.java
-    │   └── CardBlockedException.java
-    └── util/
-        ├── DatabaseConnection.java          ← Singleton JDBC
-        ├── ConfigLoader.java                ← Citire db.properties
-        └── IbanGenerator.java               ← Generare IBAN unic
-
-resources/
-    ├── db.properties
-    └── schema.sql
-
-README.md
-```
-
 Proiectul urmează o **arhitectură pe layere**:
 
 - **Model Layer** — entitățile de domeniu și relațiile dintre ele
@@ -307,14 +340,113 @@ Fiecare serviciu are constructor `private` și metodă statică `getInstance()`:
 
 ## Persistență (Etapa II)
 
-### Entități persistate
+Etapa a II-a extinde proiectul din Etapa I cu persistență JDBC, tranzacții explicite, interogări SQL avansate și audit. Modelul OOP rămâne baza aplicației, iar stratul nou de repository-uri și servicii JDBC permite salvarea și interogarea datelor dintr-o bază de date MySQL.
 
-- `Client` (individual și corporativ)
-- `Account` (curent și economii)
-- `Card`
-- `Transaction`
+### Configurare bază de date
 
+- `resources/schema.sql` conține schema relațională completă, cu `DROP TABLE IF EXISTS` la început pentru re-rulare curată.
+- `resources/db.properties` conține configurația conexiunii: `db.url`, `db.user`, `db.password`.
+- Credentialele nu sunt hardcodate în clasele Java.
+- `docker-compose.yml` pornește o instanță MySQL și montează `resources/schema.sql` pentru inițializarea bazei de date.
+- `libs/mysql-connector-j-9.7.0.jar` este driverul JDBC folosit la compilare și rulare.
 
+### Schema relațională
+
+Schema include tabele pentru toate zonele importante ale aplicației bancare:
+
+- persoane și clienți: `persons`, `clients`, `individual_clients`, `corporate_clients`
+- angajați: `employees`, `bank_tellers`, `financial_advisors`
+- conturi: `accounts`, `current_accounts`, `savings_accounts`, `iban_aliases`
+- tranzacții: `transactions`, `deposit_transactions`, `withdrawal_transactions`, `transfer_transactions`, `exchange_transactions`
+- instrumente și rapoarte: `cards`, `cheques`, `account_statements`, `account_statement_transactions`
+- credite: `credits`, `credit_installments`
+- audit DB opțional: `audit_logs`
+
+Tabelele folosesc chei primare, constrângeri `CHECK`, relații `FOREIGN KEY` și ștergeri controlate prin `ON DELETE CASCADE` acolo unde relația de compoziție o cere.
+
+### Conexiune JDBC
+
+Clasa `DatabaseConnection` este implementată ca Singleton și expune un `Connection` reutilizabil. Configurația este citită din `db.properties`, iar conexiunea este redeschisă automat dacă a fost închisă.
+
+### Repository Pattern
+
+Interfața generică `Repository<T, ID>` definește operațiile CRUD standard:
+
+```java
+void save(T entity);
+Optional<T> findById(ID id);
+List<T> findAll();
+void update(T entity);
+void delete(ID id);
+```
+
+Proiectul include repository-uri concrete pentru mai mult de patru entități, de exemplu:
+
+- `IndividualClientRepository`, `CorporateClientRepository`
+- `CurrentAccountRepository`, `SavingsAccountRepository`, `IbanAliasRepository`
+- `CardRepository`, `ChequeRepository`, `CreditRepository`
+- `TransactionRepository`, `DepositRepository`, `WithdrawalRepository`, `TransferRepository`, `ExchangeRepository`
+- `AccountStatementRepository`
+
+Repository-urile folosesc `PreparedStatement` și `try-with-resources` pentru închiderea corectă a resurselor JDBC.
+
+### Operații JDBC și tranzacții explicite
+
+În servicii au fost adăugate metode JDBC care afectează baza de date direct:
+
+- `openAccountJdbc(...)` inserează un cont nou în `accounts` după verificarea IBAN-ului.
+- `closeAccountJdbc(...)` închide logic un cont prin `active = false`, fără ștergere fizică.
+- `depositJdbc(...)` actualizează soldul și inserează tranzacția de depunere.
+- `withdrawJdbc(...)` verifică soldul, debitează contul și inserează tranzacția de retragere.
+- `transferJdbc(...)` debitează contul sursă, creditează contul destinație și inserează detaliile transferului.
+- `exchangeJdbc(...)` procesează schimb valutar între două conturi cu monede diferite.
+- `getAccountStatementJdbc(...)` citește tranzacțiile unui cont într-un interval de date și calculează intrări/ieșiri.
+- `applyForCreditJdbc(...)` inserează un credit și generează ratele lunare în `credit_installments`.
+- `payInstallmentJdbc(...)` verifică soldul, marchează rata ca plătită, debitează contul și inserează tranzacția.
+
+Operațiile care modifică mai multe tabele folosesc tranzacții JDBC explicite cu `setAutoCommit(false)`, `commit()` și `rollback()`.
+
+### Interogări avansate cu JOIN
+
+Proiectul include mai mult de trei interogări cu `JOIN`, expuse prin `ReportService` și `TransactionService`:
+
+- `getClientsWithAccountsJdbc()` listează clienții împreună cu toate conturile lor.
+- `getTransferHistoryForClientJdbc(int clientId)` afișează transferurile trimise sau primite de un client.
+- `getTopClientsByTransferredAmountJdbc(int limit)` calculează topul clienților după suma transferată.
+- `getAccountStatementJdbc(String iban)` listează transferurile unui cont cu direcție `INCOMING` / `OUTGOING`.
+- `getAccountsWithoutTransfersJdbc()` folosește `LEFT JOIN` pentru conturi fără transferuri.
+- `getClientBalanceSummaryJdbc()` calculează numărul de conturi și soldul total per client.
+- `getActiveCreditsWithClientDetailsJdbc()` listează creditele active cu datele clientului și IBAN-ul contului de plată.
+- `getAllTransfersWithAccountsJdbc()` listează toate transferurile cu IBAN sursă și IBAN destinație.
+- `getTopAccountsBySentTransfersJdbc(int limit)` grupează conturile după numărul și suma transferurilor trimise.
+
+Aceste rapoarte demonstrează `JOIN`, `LEFT JOIN`, `GROUP BY`, `COUNT`, `SUM`, `ORDER BY`, `LIMIT` și `CASE`.
+
+### Audit CSV
+
+`AuditService` este Singleton și thread-safe. Metoda de scriere este `synchronized`, iar fișierul `audit.csv` este deschis în mod append, astfel încât istoricul acțiunilor nu este suprascris între rulări.
+
+Exemple de acțiuni auditate:
+
+- `open_account`
+- `find_account_by_iban`
+- `set_account_alias`
+- `close_account`
+- `get_accounts_for_client`
+- `deposit`
+- `withdraw`
+- `transfer`
+- `transfer_jdbc`
+- `exchange`
+
+Formatul fișierului:
+
+```csv
+action_name,timestamp
+open_account,2026-06-02T15:20:31.123
+deposit,2026-06-02T15:21:05.441
+transfer_jdbc,2026-06-02T15:22:10.991
+```
 ## Concepte Demonstrate
 
 ### Design Orientat pe Obiecte
