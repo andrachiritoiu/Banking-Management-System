@@ -392,7 +392,7 @@ public class Main {
                     }
 
                     case 8 -> {
-                        accountService.withdraw(readLine("IBAN: "), readDouble("Amount: "));
+                        accountService.withdrawJdbc(readLine("IBAN: "), readDouble("Amount: "));
                         System.out.println("Withdrawal completed.");
                     }
 

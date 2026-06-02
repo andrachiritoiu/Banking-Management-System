@@ -251,6 +251,57 @@ public class AccountService {
         transactionService.recordTransaction(withdrawal);
     }
 
+    // etapa 2
+    public void withdrawJdbc(String iban, double amount) {
+        if (iban == null) {
+            throw new IllegalArgumentException("IBAN cannot be null.");
+        }
+
+        if (amount <= 0) {
+            throw new IllegalArgumentException("Withdrawal amount must be positive.");
+        }
+
+        try {
+            connection.setAutoCommit(false);
+
+            AccountDbData account = getAccountForUpdate(iban);
+
+            if (account.balance < amount) {
+                throw new SQLException("Insufficient funds.");
+            }
+
+            updateAccountBalance(account.id, -amount);
+
+            int transactionId = insertTransaction(
+                    TransactionType.WITHDRAWAL,
+                    amount,
+                    "Withdraw operation"
+            );
+
+            insertWithdrawalDetails(transactionId, account.id);
+
+            connection.commit();
+            System.out.println("Withdrawal JDBC completed successfully.");
+
+        } catch (SQLException e) {
+            try {
+                connection.rollback();
+                System.out.println("Withdrawal JDBC failed. Rollback executed.");
+            } catch (SQLException rollbackException) {
+                throw new RuntimeException("Rollback failed.", rollbackException);
+            }
+
+            throw new RuntimeException("Withdrawal JDBC failed: " + e.getMessage(), e);
+
+        } finally {
+            try {
+                connection.setAutoCommit(true);
+            } catch (SQLException e) {
+                throw new RuntimeException("Could not reset autoCommit.", e);
+            }
+        }
+    }
+
     // etapa 1
     public void transfer(String ibanSource, String ibanDestination, double amount) {
         if (ibanDestination == null || ibanSource == null) {
@@ -442,6 +493,27 @@ public class AccountService {
 
             if (affectedRows == 0) {
                 throw new SQLException("Could not insert deposit details.");
+            }
+        }
+    }
+
+    private void insertWithdrawalDetails(int transactionId, int sourceAccountId) throws SQLException {
+        String sql = """
+                INSERT INTO withdrawal_transactions (
+                    transaction_id,
+                    source_account_id
+                )
+                VALUES (?, ?)
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, transactionId);
+            statement.setInt(2, sourceAccountId);
+
+            int affectedRows = statement.executeUpdate();
+
+            if (affectedRows == 0) {
+                throw new SQLException("Could not insert withdrawal details.");
             }
         }
     }
