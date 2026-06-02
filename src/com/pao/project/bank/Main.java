@@ -164,8 +164,6 @@ public class Main {
                     6. Reports
                     7. Credits
                     8. View All Data
-                    9. Seed database demo data
-                    10. Show startup mode
                     0. Exit
                     """);
 
@@ -181,15 +179,6 @@ public class Main {
                     case 6 -> reportMenu();
                     case 7 -> creditMenu();
                     case 8 -> showAllData();
-                    case 9 -> {
-                        DatabaseSeeder.seedDemoData(true);
-                        databaseMode = true;
-                        auditService.logAction("seed_database_menu");
-                        System.out.println("Database demo data seeded successfully.");
-                    }
-                    case 10 -> System.out.println(databaseMode
-                            ? "Startup mode: MySQL database. In-memory demo data was not loaded."
-                            : "Startup mode: in-memory fallback. MySQL seed was not available at startup.");
                     case 0 -> {
                         System.out.println("Exiting...");
                         running = false;
@@ -740,8 +729,6 @@ public class Main {
                     6. Total incoming by month
                     7. Total outgoing by month
                     8. Top clients by balance
-                    9. Transactions grouped by type
-                    10. Accounts grouped by currency
                     11. Credits grouped by status
                     0. Back
                     """);
@@ -824,18 +811,6 @@ public class Main {
 
                     case 8 -> reportService.getTopClientsByBalance(readInt("Limit: "))
                             .forEach((client, balance) -> System.out.println(client.getFullName() + " -> " + balance));
-
-                    case 9 -> reportService.getTransactionsGroupedByType()
-                            .forEach((type, transactions) -> {
-                                System.out.println("\n" + type + ":");
-                                transactions.forEach(System.out::println);
-                            });
-
-                    case 10 -> reportService.getAccountsGroupedByCurrency()
-                            .forEach((currency, accounts) -> {
-                                System.out.println("\n" + currency + ":");
-                                accounts.forEach(System.out::println);
-                            });
 
                     case 11 -> reportService.getCreditsGroupedByStatus()
                             .forEach((status, credits) -> {
@@ -1098,8 +1073,6 @@ public class Main {
             case 6 -> showMonthlyFlowJdbc(readLine("IBAN: "), true);
             case 7 -> showMonthlyFlowJdbc(readLine("IBAN: "), false);
             case 8 -> reportService.getClientBalanceSummaryJdbc().forEach(System.out::println);
-            case 9 -> showTransactionsGroupedByTypeJdbc();
-            case 10 -> showAccountsGroupedByCurrencyJdbc();
             case 11 -> showCreditsGroupedByStatusJdbc();
             case 0 -> {
                 return true;
@@ -1743,33 +1716,17 @@ public class Main {
 
     private static void showMonthlyFlowJdbc(String iban, boolean incoming) throws SQLException {
         String accountColumn = incoming ? "tt.destination_account_id" : "tt.source_account_id";
-        printDatabaseQuery(incoming ? "- MONTHLY INCOMING FROM DB -" : "- MONTHLY OUTGOING FROM DB -", """
-                SELECT DATE_FORMAT(t.`timestamp`, '%Y-%m') AS month, SUM(t.amount) AS total
+        String sql = """
+                SELECT DATE_FORMAT(t.`timestamp`, '%%Y-%%m') AS month, SUM(t.amount) AS total
                 FROM transactions t
                 JOIN transfer_transactions tt ON t.id = tt.transaction_id
-                JOIN accounts a ON """ + accountColumn + " = a.id " + """
+                JOIN accounts a ON %s = a.id
                 WHERE a.iban = ?
-                GROUP BY DATE_FORMAT(t.`timestamp`, '%Y-%m')
+                GROUP BY DATE_FORMAT(t.`timestamp`, '%%Y-%%m')
                 ORDER BY month
-                """, resultSet -> resultSet.getString("month") + " -> " + resultSet.getDouble("total"), iban);
-    }
+                """.formatted(accountColumn);
 
-    private static void showTransactionsGroupedByTypeJdbc() throws SQLException {
-        printDatabaseQuery("- TRANSACTIONS GROUPED BY TYPE FROM DB -", """
-                SELECT transaction_type, COUNT(*) AS transaction_count, SUM(amount) AS total_amount
-                FROM transactions
-                GROUP BY transaction_type
-                ORDER BY transaction_type
-                """, resultSet -> resultSet.getString("transaction_type") + " -> count=" + resultSet.getInt("transaction_count") + ", total=" + resultSet.getDouble("total_amount"));
-    }
-
-    private static void showAccountsGroupedByCurrencyJdbc() throws SQLException {
-        printDatabaseQuery("- ACCOUNTS GROUPED BY CURRENCY FROM DB -", """
-                SELECT currency, COUNT(*) AS account_count, SUM(balance) AS total_balance
-                FROM accounts
-                GROUP BY currency
-                ORDER BY currency
-                """, resultSet -> resultSet.getString("currency") + " -> count=" + resultSet.getInt("account_count") + ", totalBalance=" + resultSet.getDouble("total_balance"));
+        printDatabaseQuery(incoming ? "- MONTHLY INCOMING FROM DB -" : "- MONTHLY OUTGOING FROM DB -", sql, resultSet -> resultSet.getString("month") + " -> " + resultSet.getDouble("total"), iban);
     }
 
     private static void showCreditsGroupedByStatusJdbc() throws SQLException {
