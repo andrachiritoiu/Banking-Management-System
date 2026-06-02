@@ -64,6 +64,64 @@ public class Credit {
         this.status = CreditStatus.PENDING;
     }
 
+    public Credit(int id,
+                  Client borrower,
+                  Account targetAccount,
+                  CreditType type,
+                  double principalAmount,
+                  double annualInterestRate,
+                  int durationInMonths,
+                  LocalDate startDate,
+                  double remainingAmount,
+                  CreditStatus status) {
+        if (borrower == null) {
+            throw new InvalidOperationException("Borrower cannot be null.");
+        }
+
+        if (targetAccount == null) {
+            throw new InvalidOperationException("Target account cannot be null.");
+        }
+
+        if (type == null) {
+            throw new InvalidOperationException("Credit type cannot be null.");
+        }
+
+        if (principalAmount <= 0) {
+            throw new InvalidOperationException("Principal amount must be greater than 0.");
+        }
+
+        if (annualInterestRate < 0) {
+            throw new InvalidOperationException("Annual interest rate cannot be negative.");
+        }
+
+        if (durationInMonths <= 0) {
+            throw new InvalidOperationException("Duration must be greater than 0.");
+        }
+
+        if (remainingAmount < 0) {
+            throw new InvalidOperationException("Remaining amount cannot be negative.");
+        }
+
+        if (status == null) {
+            throw new InvalidOperationException("Credit status cannot be null.");
+        }
+
+        if (status != CreditStatus.PENDING && status != CreditStatus.REJECTED && startDate == null) {
+            throw new InvalidOperationException("Start date cannot be null for active, paid or defaulted credits.");
+        }
+
+        this.id = id;
+        this.borrower = borrower;
+        this.targetAccount = targetAccount;
+        this.type = type;
+        this.principalAmount = principalAmount;
+        this.annualInterestRate = annualInterestRate;
+        this.durationInMonths = durationInMonths;
+        this.startDate = startDate;
+        this.remainingAmount = remainingAmount;
+        this.status = status;
+    }
+
     public int getId() {
         return id;
     }

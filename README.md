@@ -80,15 +80,105 @@ The application is designed with a layered architecture and focuses on clean dom
 
 ### Project Structure
 
+The structure below reflects the files currently present in the repository, including the Stage II JDBC repositories, services, SQL schema, DB configuration, and audit file.
+
 ```text
-src/
-└── com/pao/project/bank/
-    ├── model/        # Domain entities
-    ├── service/      # Business logic (Singleton services)
-    ├── repository/   # JDBC layer (Stage II)
-    ├── exception/    # Custom exceptions
-    ├── util/         # Utilities (DB connection, config)
-    └── com.pao.project.bank.Main.java     # Application entry point
+Banking-Management-System/
+|-- README.md
+|-- README.ro.md
+|-- docker-compose.yml
+|-- audit.csv
+|-- libs/
+|   `-- mysql-connector-j-9.7.0.jar
+|-- resources/
+|   |-- db.properties
+|   `-- schema.sql
+`-- src/
+    `-- com/pao/project/bank/
+        |-- Main.java
+        |-- exception/
+        |   |-- AccountClosedException.java
+        |   |-- CardBlockedException.java
+        |   |-- ChequeExpiredException.java
+        |   |-- CreditNotApprovedException.java
+        |   |-- InsufficientFundsException.java
+        |   |-- InvalidOperationException.java
+        |   `-- WithdrawalLimitExceededException.java
+        |-- model/
+        |   |-- AccountStatement.java
+        |   |-- Card.java
+        |   |-- Cheque.java
+        |   |-- Credit.java
+        |   |-- IBAN.java
+        |   |-- account/
+        |   |   |-- Account.java
+        |   |   |-- AccountFactory.java
+        |   |   |-- CurrentAccount.java
+        |   |   |-- SavingsAccount.java
+        |   |   `-- Transactable.java
+        |   |-- enums/
+        |   |   |-- AccountType.java
+        |   |   |-- CardStatus.java
+        |   |   |-- ChequeStatus.java
+        |   |   |-- CreditStatus.java
+        |   |   |-- CreditType.java
+        |   |   |-- Currency.java
+        |   |   `-- TransactionType.java
+        |   |-- person/
+        |   |   |-- BankEmployee.java
+        |   |   |-- BankTeller.java
+        |   |   |-- Client.java
+        |   |   |-- CorporateClient.java
+        |   |   |-- FinancialAdvisor.java
+        |   |   |-- IndividualClient.java
+        |   |   `-- Person.java
+        |   `-- transaction/
+        |       |-- Deposit.java
+        |       |-- Exchange.java
+        |       |-- Transaction.java
+        |       |-- Transfer.java
+        |       `-- Withdrawal.java
+        |-- repository/
+        |   |-- Repository.java
+        |   |-- AccountStatementRepository.java
+        |   |-- CardRepository.java
+        |   |-- ChequeRepository.java
+        |   |-- CreditRepository.java
+        |   |-- TransactionRepository.java
+        |   |-- account/
+        |   |   |-- CurrentAccountRepository.java
+        |   |   |-- IbanAliasRepository.java
+        |   |   `-- SavingsAccountRepository.java
+        |   |-- helper/
+        |   |   |-- AccountRepositoryHelper.java
+        |   |   |-- ClientRepositoryHelper.java
+        |   |   |-- EmployeeRepositoryHelper.java
+        |   |   |-- PersonRepositoryHelper.java
+        |   |   `-- TransactionRepositoryHelper.java
+        |   |-- person/
+        |   |   |-- BankTellerRepository.java
+        |   |   |-- CorporateClientRepository.java
+        |   |   |-- FinancialAdvisorRepository.java
+        |   |   `-- IndividualClientRepository.java
+        |   `-- transaction/
+        |       |-- DepositRepository.java
+        |       |-- ExchangeRepository.java
+        |       |-- TransferRepository.java
+        |       `-- WithdrawalRepository.java
+        |-- service/
+        |   |-- AccountService.java
+        |   |-- AuditService.java
+        |   |-- CardService.java
+        |   |-- ChequeService.java
+        |   |-- ClientService.java
+        |   |-- CreditService.java
+        |   |-- DatabaseViewService.java
+        |   |-- EmployeeService.java
+        |   |-- ReportService.java
+        |   `-- TransactionService.java
+        `-- util/
+            |-- DatabaseConnection.java
+            `-- DatabaseSeeder.java
 ```
 
 The project follows a layered architecture:
@@ -296,78 +386,135 @@ Exceptions are both thrown and handled within the service layer.
 
 ---
 
-```
-src/
-└── com/pao/project/bank/
-    ├── model/
-    │   ├── person/
-    │   │   ├── Person.java               ← Abstract base
-    │   │   ├── Client.java               ← Abstract client
-    │   │   ├── IndividualClient.java     ← CNP, personal data
-    │   │   ├── CorporateClient.java      ← CUI + legal rep (composition)
-    │   │   ├── BankEmployee.java         ← Abstract employee
-    │   │   ├── BankTeller.java
-    │   │   └── FinancialAdvisor.java
-    │   ├── account/
-    │   │   ├── Account.java              ← Abstract, holds IBAN
-    │   │   ├── CurrentAccount.java
-    │   │   └── SavingsAccount.java       ← Interest rate + withdrawal cap
-    │   ├── transaction/
-    │   │   ├── Transaction.java          ← Immutable abstract base
-    │   │   ├── Deposit.java
-    │   │   ├── Withdrawal.java
-    │   │   └── Transfer.java             ← Atomic two-account operation
-    │   ├── IBAN.java                     ← Immutable value object
-    │   ├── Card.java                     ← State machine: ACTIVE→BLOCKED/EXPIRED
-    │   ├── AccountStatement.java         ← Aggregated report model
-    │   ├── Cheque.java                   ← Payment instrument with lifecycle
-    │   └── enums/
-    │       ├── AccountType.java
-    │       ├── TransactionType.java
-    │       ├── CardStatus.java
-    │       └── ChequeStatus.java
-    ├── service/
-    │   ├── ClientService.java               ← Singleton
-    |   ├── EmployeeService.java             ← Singleton
-    │   ├── AccountService.java              ← Singleton
-    │   ├── CardService.java                 ← Singleton
-    │   ├── TransactionService.java          ← Singleton
-    │   ├── ChequeService.java               ← Singleton
-    │   ├── ReportService.java               ← Singleton
-    │   └── AuditService.java                ← Singleton · Thread-safe · CSV
-    ├── repository/
-    │   ├── ClientRepository.java         ← Full CRUD
-    │   ├── AccountRepository.java        ← Full CRUD + JOINs
-    │   ├── CardRepository.java           ← Full CRUD
-    │   └── TransactionRepository.java    ← Full CRUD + history queries
-    ├── exception/
-    │   ├── InsufficientFundsException.java
-    │   ├── AccountClosedException.java
-    │   ├── InvalidOperationException.java
-    │   ├── WithdrawalLimitExceededException.java
-    │   └── CardBlockedException.java
-    ├── util/
-    │   ├── DBConnection.java             ← Connection management
-    │   └── Config.java                  ← Config loading
-    └── com.pao.project.bank.Main.java
-```
-
 ## Persistence (Stage II)
 
-### Entities persisted
-- Client  
-- Account  
-- Card  
-- Transaction  
+Stage II extends the Stage I OOP project with JDBC persistence, explicit SQL transactions, advanced JOIN queries, and CSV audit logging. The original domain model remains the core of the application, while the new repository and JDBC service layers persist and query data from MySQL.
 
-### Features
-- Full CRUD operations  
-- JDBC with `PreparedStatement`  
-- Explicit transactions (`commit` / `rollback`)  
-- JOIN-based queries  
-- CSV audit logging  
+### Database Configuration
 
----
+- `resources/schema.sql` contains the relational schema and starts with `DROP TABLE IF EXISTS` statements for clean re-runs.
+- `resources/db.properties` stores `db.url`, `db.user`, and `db.password`.
+- Database credentials are not hardcoded in Java classes.
+- `docker-compose.yml` starts a MySQL instance and mounts `resources/schema.sql` for database initialization.
+- `libs/mysql-connector-j-9.7.0.jar` is the JDBC driver used for compilation and runtime.
+
+
+### Runtime Modes
+
+At startup, the application automatically chooses the data source:
+
+```text
+MySQL available   -> runs DatabaseSeeder, uses the database, and does not load in-memory demo lists
+MySQL unavailable -> falls back to the Stage I in-memory demo data
+```
+
+Useful commands:
+
+```powershell
+docker compose up -d
+javac -cp "libs\mysql-connector-j-9.7.0.jar" -d out\production\Bank-Project (Get-ChildItem -Recurse -File -Filter *.java -Path src | ForEach-Object { $_.FullName })
+java -cp "out\production\Bank-Project;libs\mysql-connector-j-9.7.0.jar;resources" com.pao.project.bank.Main
+java -cp "out\production\Bank-Project;libs\mysql-connector-j-9.7.0.jar;resources" com.pao.project.bank.Main --seed-db
+```
+
+Main menu option `10. Show startup mode` shows the active mode. In database mode, menus read and modify MySQL data; in fallback mode, they use the in-memory services.
+### Relational Schema
+
+The schema covers the main banking areas:
+
+- people and clients: `persons`, `clients`, `individual_clients`, `corporate_clients`
+- employees: `employees`, `bank_tellers`, `financial_advisors`
+- accounts: `accounts`, `current_accounts`, `savings_accounts`, `iban_aliases`
+- transactions: `transactions`, `deposit_transactions`, `withdrawal_transactions`, `transfer_transactions`, `exchange_transactions`
+- banking instruments and reports: `cards`, `cheques`, `account_statements`, `account_statement_transactions`
+- credits: `credits`, `credit_installments` (the seeder includes demo credits and monthly installments)
+- optional database audit table: `audit_logs`
+
+The tables use primary keys, `CHECK` constraints, foreign keys, and controlled cascading deletes where the relationship requires it.
+
+### JDBC Connection
+
+`DatabaseConnection` is implemented as a Singleton. It reads the connection settings from `db.properties`, exposes a reusable `Connection`, and reopens the connection if it was closed.
+
+### Repository Pattern
+
+The generic `Repository<T, ID>` interface defines the standard CRUD operations:
+
+```java
+void save(T entity);
+Optional<T> findById(ID id);
+List<T> findAll();
+void update(T entity);
+void delete(ID id);
+```
+
+The project includes concrete repositories for more than four entities, including:
+
+- `IndividualClientRepository`, `CorporateClientRepository`
+- `CurrentAccountRepository`, `SavingsAccountRepository`, `IbanAliasRepository`
+- `CardRepository`, `ChequeRepository`, `CreditRepository`
+- `TransactionRepository`, `DepositRepository`, `WithdrawalRepository`, `TransferRepository`, `ExchangeRepository`
+- `AccountStatementRepository`
+
+Repositories use `PreparedStatement` and `try-with-resources` to close JDBC resources correctly.
+
+### JDBC Operations and Explicit Transactions
+
+The services now include JDBC methods that work directly with the database:
+
+- `openAccountJdbc(...)` creates an account after checking that the IBAN does not already exist.
+- `closeAccountJdbc(...)` closes an account logically with `active = false`, without physically deleting it.
+- `depositJdbc(...)` updates the account balance and inserts a deposit transaction.
+- `withdrawJdbc(...)` validates funds, debits the account, and inserts a withdrawal transaction.
+- `transferJdbc(...)` debits the source account, credits the destination account, and inserts transfer details.
+- `exchangeJdbc(...)` processes currency exchange between accounts with different currencies.
+- `getAccountStatementJdbc(...)` reads account transactions for a date interval and calculates inflows/outflows.
+- `applyForCreditJdbc(...)` inserts a credit and generates monthly installments in `credit_installments`.
+- `payInstallmentJdbc(...)` checks balance, debits the account, marks the installment as paid, and inserts the transaction.
+
+Operations that modify multiple tables use explicit JDBC transactions with `setAutoCommit(false)`, `commit()`, and `rollback()`.
+
+### Advanced JOIN Queries
+
+The project exposes more than three JOIN-based queries through `ReportService` and `TransactionService`:
+
+- `getClientsWithAccountsJdbc()` lists clients with all their accounts.
+- `getTransferHistoryForClientJdbc(int clientId)` returns transfers sent or received by a client.
+- `getTopClientsByTransferredAmountJdbc(int limit)` ranks clients by total transferred amount.
+- `getAccountStatementJdbc(String iban)` lists transfers for an IBAN with `INCOMING` / `OUTGOING` direction.
+- `getAccountsWithoutTransfersJdbc()` uses `LEFT JOIN` to find accounts without transfers.
+- `getClientBalanceSummaryJdbc()` calculates account count and total balance per client.
+- `getActiveCreditsWithClientDetailsJdbc()` lists active credits with client details and payment account IBAN.
+- `getAllTransfersWithAccountsJdbc()` lists all transfers with source and destination IBANs.
+- `getTopAccountsBySentTransfersJdbc(int limit)` groups accounts by sent transfer count and amount.
+
+These reports demonstrate `JOIN`, `LEFT JOIN`, `GROUP BY`, `COUNT`, `SUM`, `ORDER BY`, `LIMIT`, and `CASE`.
+
+### CSV Audit
+
+`AuditService` is a thread-safe Singleton. The write method is `synchronized`, and `audit.csv` is opened in append mode so previous audit entries are not overwritten.
+
+Examples of audited actions:
+
+- `open_account`
+- `find_account_by_iban`
+- `set_account_alias`
+- `close_account`
+- `get_accounts_for_client`
+- `deposit`
+- `withdraw`
+- `transfer`
+- `transfer_jdbc`
+- `exchange`
+
+CSV format:
+
+```csv
+action_name,timestamp
+open_account,2026-06-02T15:20:31.123
+deposit,2026-06-02T15:21:05.441
+transfer_jdbc,2026-06-02T15:22:10.991
+```
 
 ## Concepts Demonstrated
 

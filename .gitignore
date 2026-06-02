@@ -30,3 +30,25 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+
+
+### Project local files ###
+
+### Local database/config ###
+.env
+
+### Database files ###
+*.db
+*.sqlite
+*.sqlite3
+
+### Docker / local volumes ###
+mysql-data/
+data/
+
+### IntelliJ extra ###
+.idea/
+*.iml
+
+### Logs ###
+*.log

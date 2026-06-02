@@ -35,6 +35,31 @@ public class Card {
         this.status = CardStatus.ACTIVE;
     }
 
+    public Card(String cardNumber, String cvv, LocalDate expirationDate, boolean contactless, CardStatus status, Account account) {
+        if (cardNumber == null || !cardNumber.matches("\\d{16}")) {
+            throw new IllegalArgumentException("Card number must contain exactly 16 digits.");
+        }
+        if (cvv == null || !cvv.matches("\\d{3}")) {
+            throw new IllegalArgumentException("CVV must contain exactly 3 digits.");
+        }
+        if (expirationDate == null) {
+            throw new IllegalArgumentException("Expiration date cannot be null.");
+        }
+        if (status == null) {
+            throw new IllegalArgumentException("Card status cannot be null.");
+        }
+        if (account == null) {
+            throw new IllegalArgumentException("Account cannot be null.");
+        }
+
+        this.cardNumber = cardNumber;
+        this.cvv = cvv;
+        this.expirationDate = expirationDate;
+        this.contactless = contactless;
+        this.status = status;
+        this.account = account;
+    }
+
     private String generateCardNumber() {
         Random random = new Random();
         StringBuilder sb = new StringBuilder();
