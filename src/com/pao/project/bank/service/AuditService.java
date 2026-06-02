@@ -8,7 +8,7 @@ import java.nio.file.StandardOpenOption;
 import java.time.LocalDateTime;
 
 public class AuditService {
-    private static final Path AUDIT_FILE_PATH = Path.of("audit.csv");
+    private static final Path AUDIT_FILE_PATH = resolveAuditFilePath();
     private static final AuditService INSTANCE = new AuditService();
 
     private AuditService() {
@@ -50,7 +50,7 @@ public class AuditService {
                         StandardOpenOption.CREATE,
                         StandardOpenOption.APPEND
                 )) {
-                    writer.write("action_name,timestamp");
+                    writer.write("nume_actiune,timestamp");
                     writer.newLine();
                 }
             }
@@ -65,5 +65,14 @@ public class AuditService {
         }
 
         return value;
+    }
+
+    private static Path resolveAuditFilePath() {
+        Path projectDirectory = Path.of("Banking-Management-System");
+        if (Files.isDirectory(projectDirectory)) {
+            return projectDirectory.resolve("audit.csv");
+        }
+
+        return Path.of("audit.csv");
     }
 }

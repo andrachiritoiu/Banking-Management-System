@@ -148,6 +148,112 @@ public class Main {
         }
     }
 
+    private static void auditMenuAction(String menu, int option) {
+        String actionName = switch (menu) {
+            case "main" -> switch (option) {
+                case 1 -> "deschide_meniu_clienti";
+                case 2 -> "deschide_meniu_angajati";
+                case 3 -> "deschide_meniu_conturi_tranzactii";
+                case 4 -> "deschide_meniu_carduri";
+                case 5 -> "deschide_meniu_cecuri";
+                case 6 -> "deschide_meniu_rapoarte";
+                case 7 -> "deschide_meniu_credite";
+                case 8 -> "afiseaza_toate_datele";
+                default -> null;
+            };
+            case "client" -> switch (option) {
+                case 1 -> "afiseaza_clienti";
+                case 2 -> "adauga_client_individual";
+                case 3 -> "adauga_client_corporate";
+                case 4 -> "sterge_client";
+                case 5 -> "cauta_client_dupa_cod";
+                case 6 -> "cauta_client_individual_dupa_cnp";
+                case 7 -> "cauta_client_corporate_dupa_cui";
+                case 8 -> "sorteaza_clienti_dupa_nume";
+                default -> null;
+            };
+            case "employee" -> switch (option) {
+                case 1 -> "afiseaza_angajati";
+                case 2 -> "adauga_operator_bancar";
+                case 3 -> "adauga_consultant_financiar";
+                case 4 -> "sterge_angajat";
+                case 5 -> "cauta_angajat_dupa_cod";
+                case 6 -> "cauta_angajat_dupa_email";
+                case 7 -> "cauta_operatori_dupa_ghiseu";
+                case 8 -> "cauta_consultanti_dupa_specializare";
+                default -> null;
+            };
+            case "account" -> switch (option) {
+                case 1 -> "afiseaza_conturi";
+                case 2 -> "deschide_cont_curent";
+                case 3 -> "deschide_cont_economii";
+                case 4 -> "cauta_cont_dupa_iban";
+                case 5 -> "afiseaza_conturi_client";
+                case 6 -> "inchide_cont";
+                case 7 -> "depunere";
+                case 8 -> "retragere";
+                case 9 -> "transfer";
+                case 10 -> "schimb_valutar";
+                case 11 -> "seteaza_alias_iban";
+                case 12 -> "cauta_cont_dupa_alias";
+                case 13 -> "transfer_dupa_alias";
+                case 14 -> "afiseaza_aliasuri";
+                case 15 -> "afiseaza_tranzactii_cont";
+                case 16 -> "afiseaza_tranzactii_cont_dupa_tip";
+                case 17 -> "afiseaza_tranzactii_cont_sortate_dupa_data";
+                default -> null;
+            };
+            case "card" -> switch (option) {
+                case 1 -> "emite_card";
+                case 2 -> "emite_card_custom";
+                case 3 -> "cauta_card_dupa_numar";
+                case 4 -> "blocheaza_card";
+                case 5 -> "deblocheaza_card";
+                case 6 -> "valideaza_card";
+                case 7 -> "afiseaza_carduri";
+                case 8 -> "afiseaza_carduri_cont";
+                default -> null;
+            };
+            case "cheque" -> switch (option) {
+                case 1 -> "emite_cec";
+                case 2 -> "cauta_cec_dupa_serie";
+                case 3 -> "afiseaza_cecuri";
+                case 4 -> "afiseaza_cecuri_dupa_status";
+                case 5 -> "incaseaza_cec";
+                case 6 -> "anuleaza_cec";
+                default -> null;
+            };
+            case "report" -> switch (option) {
+                case 1 -> "extras_cont";
+                case 2 -> "total_intrari_cont";
+                case 3 -> "total_iesiri_cont";
+                case 4 -> "istoric_tranzactii_cont";
+                case 5 -> "extras_lunar_cont";
+                case 6 -> "total_intrari_lunar";
+                case 7 -> "total_iesiri_lunar";
+                case 8 -> "top_clienti_dupa_sold";
+                case 11 -> "credite_grupate_dupa_status";
+                default -> null;
+            };
+            case "credit" -> switch (option) {
+                case 1 -> "creeaza_credit";
+                case 2 -> "aproba_credit";
+                case 3 -> "respinge_credit";
+                case 4 -> "plateste_rata";
+                case 5 -> "cauta_credit_dupa_id";
+                case 6 -> "afiseaza_credite";
+                case 7 -> "afiseaza_credite_client";
+                case 8 -> "afiseaza_credite_dupa_status";
+                default -> null;
+            };
+            default -> null;
+        };
+
+        if (actionName != null) {
+            auditService.logAction(actionName);
+        }
+    }
+
     private static void runMenu() {
         boolean running = true;
 
@@ -170,6 +276,7 @@ public class Main {
             int option = readInt("Choose option: ");
 
             try {
+                auditMenuAction("main", option);
                 switch (option) {
                     case 1 -> clientMenu();
                     case 2 -> employeeMenu();
@@ -212,6 +319,7 @@ public class Main {
             int op = readInt("Choose: ");
 
             try {
+                auditMenuAction("client", op);
                 if (databaseMode) {
                     back = handleClientMenuJdbc(op);
                     continue;
@@ -303,6 +411,7 @@ public class Main {
             int op = readInt("Choose: ");
 
             try {
+                auditMenuAction("employee", op);
                 if (databaseMode) {
                     back = handleEmployeeMenuJdbc(op);
                     continue;
@@ -391,6 +500,7 @@ public class Main {
             int op = readInt("Choose: ");
 
             try {
+                auditMenuAction("account", op);
                 if (databaseMode) {
                     back = handleAccountMenuJdbc(op);
                     continue;
@@ -559,6 +669,7 @@ public class Main {
             int op = readInt("Choose: ");
 
             try {
+                auditMenuAction("card", op);
                 if (databaseMode) {
                     back = handleCardMenuJdbc(op);
                     continue;
@@ -646,6 +757,7 @@ public class Main {
             int op = readInt("Choose: ");
 
             try {
+                auditMenuAction("cheque", op);
                 if (databaseMode) {
                     back = handleChequeMenuJdbc(op);
                     continue;
@@ -736,6 +848,7 @@ public class Main {
             int op = readInt("Choose: ");
 
             try {
+                auditMenuAction("report", op);
                 if (databaseMode) {
                     back = handleReportMenuJdbc(op);
                     continue;
@@ -848,6 +961,7 @@ public class Main {
             int op = readInt("Choose: ");
 
             try {
+                auditMenuAction("credit", op);
                 if (databaseMode) {
                     back = handleCreditMenuJdbc(op);
                     continue;
