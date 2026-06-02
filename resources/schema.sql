@@ -6,6 +6,7 @@ DROP TABLE IF EXISTS transfer_transactions;
 DROP TABLE IF EXISTS withdrawal_transactions;
 DROP TABLE IF EXISTS deposit_transactions;
 DROP TABLE IF EXISTS transactions;
+DROP TABLE IF EXISTS credit_installments;
 DROP TABLE IF EXISTS credits;
 DROP TABLE IF EXISTS cheques;
 DROP TABLE IF EXISTS cards;
@@ -398,6 +399,28 @@ CREATE TABLE credits (
             status IN ('PENDING', 'REJECTED')
             OR start_date IS NOT NULL
         )
+);
+
+CREATE TABLE credit_installments (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    credit_id INT NOT NULL,
+    installment_number INT NOT NULL,
+    due_date DATE NOT NULL,
+    amount DECIMAL(15,2) NOT NULL,
+    paid BOOLEAN NOT NULL DEFAULT FALSE,
+
+    CONSTRAINT fk_credit_installments_credit
+        FOREIGN KEY (credit_id) REFERENCES credits(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT uq_credit_installments_number
+        UNIQUE (credit_id, installment_number),
+
+    CONSTRAINT chk_credit_installments_number
+        CHECK (installment_number > 0),
+
+    CONSTRAINT chk_credit_installments_amount
+        CHECK (amount > 0)
 );
 
 -- Audit
