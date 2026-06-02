@@ -295,7 +295,7 @@ public class ReportService {
         }
 
         String sql = """
-                SELECT
+                SELECT DISTINCT
                     c.id AS client_id,
                     COALESCE(CONCAT(ic.first_name, ' ', ic.last_name), cc.company_name) AS client_name,
                     t.id AS transaction_id,

@@ -35,6 +35,7 @@ public class AccountService {
     private static final AccountService INSTANCE = new AccountService();
 
     private final TransactionService transactionService = TransactionService.getInstance();
+    private final AuditService auditService = AuditService.getInstance();
     private final IndividualClientRepository individualClientRepository = new IndividualClientRepository();
     private final CorporateClientRepository corporateClientRepository = new CorporateClientRepository();
 
@@ -65,6 +66,7 @@ public class AccountService {
 
         accounts.add(account);
         accountsByIban.put(iban, account);
+        auditService.logAction("open_account");
     }
 
     // etapa 2
@@ -79,6 +81,7 @@ public class AccountService {
             }
 
             insertAccountJdbc(account);
+            auditService.logAction("open_account_jdbc");
             System.out.println("Open account JDBC completed successfully.");
         } catch (SQLException e) {
             throw new RuntimeException("Open account JDBC failed: " + e.getMessage(), e);
@@ -90,6 +93,7 @@ public class AccountService {
             throw new IllegalArgumentException("IBAN cannot be null.");
         }
 
+        auditService.logAction("find_account_by_iban");
         return accountsByIban.get(iban);
     }
 
@@ -107,6 +111,7 @@ public class AccountService {
         }
 
         ibanAliases.put(normalizeAlias(alias), iban);
+        auditService.logAction("set_account_alias");
     }
 
     public Account findByAlias(String alias) {
@@ -149,6 +154,7 @@ public class AccountService {
         }
 
         account.closeAccount();
+        auditService.logAction("close_account");
     }
 
     // etapa 2
@@ -173,6 +179,7 @@ public class AccountService {
             markAccountClosed(account.id);
 
             connection.commit();
+            auditService.logAction("close_account_jdbc");
             System.out.println("Close account JDBC completed successfully.");
         } catch (SQLException e) {
             try {
@@ -200,6 +207,7 @@ public class AccountService {
         List<Account> result = new ArrayList<>();
 
         if (client == null) {
+            auditService.logAction("get_accounts_for_client");
             return result;
         }
 
@@ -209,6 +217,7 @@ public class AccountService {
             }
         }
 
+        auditService.logAction("get_accounts_for_client");
         return result;
     }
 
@@ -279,6 +288,7 @@ public class AccountService {
         );
 
         transactionService.recordTransaction(deposit);
+        auditService.logAction("deposit");
     }
 
     // etapa 2
@@ -307,6 +317,7 @@ public class AccountService {
             insertDepositDetails(transactionId, account.id);
 
             connection.commit();
+            auditService.logAction("deposit_jdbc");
             System.out.println("Deposit JDBC completed successfully.");
 
         } catch (SQLException e) {
@@ -355,6 +366,7 @@ public class AccountService {
         );
 
         transactionService.recordTransaction(withdrawal);
+        auditService.logAction("withdraw");
     }
 
     // etapa 2
@@ -387,6 +399,7 @@ public class AccountService {
             insertWithdrawalDetails(transactionId, account.id);
 
             connection.commit();
+            auditService.logAction("withdraw_jdbc");
             System.out.println("Withdrawal JDBC completed successfully.");
 
         } catch (SQLException e) {
@@ -443,6 +456,7 @@ public class AccountService {
         );
 
         transactionService.recordTransaction(transfer);
+        auditService.logAction("transfer");
     }
 
     // etapa 2
@@ -485,6 +499,7 @@ public class AccountService {
             );
 
             connection.commit();
+            auditService.logAction("transfer_jdbc");
             System.out.println("Transfer JDBC completed successfully.");
 
         } catch (SQLException e) {
@@ -563,6 +578,7 @@ public class AccountService {
             );
 
             connection.commit();
+            auditService.logAction("exchange_jdbc");
             System.out.println("Exchange JDBC completed successfully.");
 
         } catch (SQLException e) {
@@ -1236,6 +1252,7 @@ public class AccountService {
         );
 
         transactionService.recordTransaction(exchange);
+        auditService.logAction("exchange");
 
         return exchange;
     }
