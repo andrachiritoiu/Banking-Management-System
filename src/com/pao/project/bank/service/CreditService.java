@@ -5,6 +5,7 @@ import com.pao.project.bank.model.account.Account;
 import com.pao.project.bank.model.Credit;
 import com.pao.project.bank.model.enums.CreditStatus;
 import com.pao.project.bank.model.enums.CreditType;
+import com.pao.project.bank.model.enums.TransactionType;
 import com.pao.project.bank.model.person.Client;
 import com.pao.project.bank.util.DatabaseConnection;
 
@@ -14,7 +15,9 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Timestamp;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -163,6 +166,66 @@ public class CreditService {
         credit.payInstallment(amount);
     }
 
+    // etapa 2
+    public void payInstallmentJdbc(int creditId, int installmentNumber) {
+        if (creditId <= 0) {
+            throw new InvalidOperationException("Credit id must be positive.");
+        }
+
+        if (installmentNumber <= 0) {
+            throw new InvalidOperationException("Installment number must be positive.");
+        }
+
+        try {
+            connection.setAutoCommit(false);
+
+            CreditInstallmentPaymentDbData paymentData = getInstallmentForPayment(creditId, installmentNumber);
+
+            if (paymentData.status != CreditStatus.ACTIVE) {
+                throw new SQLException("Only active credits can be paid.");
+            }
+
+            if (paymentData.installmentPaid) {
+                throw new SQLException("Installment is already paid.");
+            }
+
+            if (!paymentData.accountActive) {
+                throw new SQLException("Target account is closed.");
+            }
+
+            if (paymentData.accountBalance < paymentData.installmentAmount) {
+                throw new SQLException("Insufficient funds for installment payment.");
+            }
+
+            updateAccountBalanceForInstallment(paymentData.accountId, paymentData.installmentAmount);
+            markInstallmentPaid(paymentData.installmentId);
+
+            double remainingAmount = Math.max(0, paymentData.remainingAmount - paymentData.installmentAmount);
+            updateCreditAfterInstallment(creditId, remainingAmount);
+
+            int transactionId = insertInstallmentTransaction(paymentData.installmentAmount);
+            insertInstallmentWithdrawalDetails(transactionId, paymentData.accountId);
+
+            connection.commit();
+            System.out.println("Pay installment JDBC completed successfully.");
+        } catch (SQLException e) {
+            try {
+                connection.rollback();
+                System.out.println("Pay installment JDBC failed. Rollback executed.");
+            } catch (SQLException rollbackException) {
+                throw new RuntimeException("Rollback failed.", rollbackException);
+            }
+
+            throw new RuntimeException("Pay installment JDBC failed: " + e.getMessage(), e);
+        } finally {
+            try {
+                connection.setAutoCommit(true);
+            } catch (SQLException e) {
+                throw new RuntimeException("Could not reset autoCommit.", e);
+            }
+        }
+    }
+
     public Credit findById(int creditId) {
         Credit credit = creditsById.get(creditId);
 
@@ -226,6 +289,160 @@ public class CreditService {
         }
 
         throw new SQLException("Target account not found.");
+    }
+
+    private CreditInstallmentPaymentDbData getInstallmentForPayment(int creditId, int installmentNumber) throws SQLException {
+        String sql = """
+                SELECT
+                    ci.id AS installment_id,
+                    ci.amount AS installment_amount,
+                    ci.paid AS installment_paid,
+                    c.remaining_amount,
+                    c.status,
+                    a.id AS account_id,
+                    a.balance AS account_balance,
+                    a.active AS account_active
+                FROM credit_installments ci
+                JOIN credits c ON ci.credit_id = c.id
+                JOIN accounts a ON c.target_account_id = a.id
+                WHERE ci.credit_id = ?
+                  AND ci.installment_number = ?
+                FOR UPDATE
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, creditId);
+            statement.setInt(2, installmentNumber);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    return new CreditInstallmentPaymentDbData(
+                            resultSet.getInt("installment_id"),
+                            resultSet.getDouble("installment_amount"),
+                            resultSet.getBoolean("installment_paid"),
+                            resultSet.getDouble("remaining_amount"),
+                            CreditStatus.valueOf(resultSet.getString("status")),
+                            resultSet.getInt("account_id"),
+                            resultSet.getDouble("account_balance"),
+                            resultSet.getBoolean("account_active")
+                    );
+                }
+            }
+        }
+
+        throw new SQLException("Installment not found for credit id: " + creditId);
+    }
+
+    private void updateAccountBalanceForInstallment(int accountId, double installmentAmount) throws SQLException {
+        String sql = """
+                UPDATE accounts
+                SET balance = balance - ?
+                WHERE id = ?
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setDouble(1, installmentAmount);
+            statement.setInt(2, accountId);
+
+            int affectedRows = statement.executeUpdate();
+
+            if (affectedRows == 0) {
+                throw new SQLException("Could not update account balance.");
+            }
+        }
+    }
+
+    private void markInstallmentPaid(int installmentId) throws SQLException {
+        String sql = """
+                UPDATE credit_installments
+                SET paid = true
+                WHERE id = ?
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, installmentId);
+
+            int affectedRows = statement.executeUpdate();
+
+            if (affectedRows == 0) {
+                throw new SQLException("Could not mark installment as paid.");
+            }
+        }
+    }
+
+    private void updateCreditAfterInstallment(int creditId, double remainingAmount) throws SQLException {
+        String sql = """
+                UPDATE credits
+                SET remaining_amount = ?,
+                    status = ?
+                WHERE id = ?
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setDouble(1, remainingAmount);
+            statement.setString(2, remainingAmount == 0 ? CreditStatus.PAID.name() : CreditStatus.ACTIVE.name());
+            statement.setInt(3, creditId);
+
+            int affectedRows = statement.executeUpdate();
+
+            if (affectedRows == 0) {
+                throw new SQLException("Could not update credit after installment payment.");
+            }
+        }
+    }
+
+    private int insertInstallmentTransaction(double amount) throws SQLException {
+        String sql = """
+                INSERT INTO transactions (
+                    transaction_type,
+                    amount,
+                    `timestamp`,
+                    description
+                )
+                VALUES (?, ?, ?, ?)
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            statement.setString(1, TransactionType.WITHDRAWAL.name());
+            statement.setDouble(2, amount);
+            statement.setTimestamp(3, Timestamp.valueOf(LocalDateTime.now()));
+            statement.setString(4, "Credit installment payment");
+
+            int affectedRows = statement.executeUpdate();
+
+            if (affectedRows == 0) {
+                throw new SQLException("Could not insert installment transaction.");
+            }
+
+            try (ResultSet generatedKeys = statement.getGeneratedKeys()) {
+                if (generatedKeys.next()) {
+                    return generatedKeys.getInt(1);
+                }
+            }
+        }
+
+        throw new SQLException("Could not get generated transaction id.");
+    }
+
+    private void insertInstallmentWithdrawalDetails(int transactionId, int accountId) throws SQLException {
+        String sql = """
+                INSERT INTO withdrawal_transactions (
+                    transaction_id,
+                    source_account_id
+                )
+                VALUES (?, ?)
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, transactionId);
+            statement.setInt(2, accountId);
+
+            int affectedRows = statement.executeUpdate();
+
+            if (affectedRows == 0) {
+                throw new SQLException("Could not insert installment withdrawal details.");
+            }
+        }
     }
 
     private int insertCreditJdbc(
@@ -370,6 +587,37 @@ public class CreditService {
         private AccountCreditDbData(int id, int clientId) {
             this.id = id;
             this.clientId = clientId;
+        }
+    }
+
+    private static class CreditInstallmentPaymentDbData {
+        private final int installmentId;
+        private final double installmentAmount;
+        private final boolean installmentPaid;
+        private final double remainingAmount;
+        private final CreditStatus status;
+        private final int accountId;
+        private final double accountBalance;
+        private final boolean accountActive;
+
+        private CreditInstallmentPaymentDbData(
+                int installmentId,
+                double installmentAmount,
+                boolean installmentPaid,
+                double remainingAmount,
+                CreditStatus status,
+                int accountId,
+                double accountBalance,
+                boolean accountActive
+        ) {
+            this.installmentId = installmentId;
+            this.installmentAmount = installmentAmount;
+            this.installmentPaid = installmentPaid;
+            this.remainingAmount = remainingAmount;
+            this.status = status;
+            this.accountId = accountId;
+            this.accountBalance = accountBalance;
+            this.accountActive = accountActive;
         }
     }
 }
