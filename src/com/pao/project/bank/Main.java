@@ -406,7 +406,7 @@ public class Main {
                     }
 
                     case 10 -> {
-                        accountService.exchange(
+                        accountService.exchangeJdbc(
                                 readLine("Source IBAN: "),
                                 readLine("Destination IBAN: "),
                                 readDouble("Source amount: "),

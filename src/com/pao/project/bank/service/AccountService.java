@@ -400,9 +400,87 @@ public class AccountService {
         }
     }
 
+    // etapa 2
+    public void exchangeJdbc(String ibanSource, String ibanDestination, double sourceAmount, double exchangeRate) {
+        if (ibanSource == null || ibanDestination == null) {
+            throw new IllegalArgumentException("IBAN cannot be null.");
+        }
+
+        if (sourceAmount <= 0) {
+            throw new IllegalArgumentException("Exchange amount must be positive.");
+        }
+
+        if (exchangeRate <= 0) {
+            throw new IllegalArgumentException("Exchange rate must be positive.");
+        }
+
+        if (ibanSource.equals(ibanDestination)) {
+            throw new IllegalArgumentException("Source and destination accounts must be different.");
+        }
+
+        try {
+            connection.setAutoCommit(false);
+
+            AccountDbData sourceAccount = getAccountForUpdate(ibanSource);
+            AccountDbData destinationAccount = getAccountForUpdate(ibanDestination);
+
+            Currency fromCurrency = parseCurrency(sourceAccount.currency);
+            Currency toCurrency = parseCurrency(destinationAccount.currency);
+
+            if (fromCurrency == toCurrency) {
+                throw new SQLException("Exchange must be made between accounts with different currencies.");
+            }
+
+            if (sourceAccount.balance < sourceAmount) {
+                throw new SQLException("Insufficient funds.");
+            }
+
+            double destinationAmount = sourceAmount * exchangeRate;
+
+            updateAccountBalance(sourceAccount.id, -sourceAmount);
+            updateAccountBalance(destinationAccount.id, destinationAmount);
+
+            int transactionId = insertTransaction(
+                    TransactionType.EXCHANGE,
+                    sourceAmount,
+                    "Exchange operation"
+            );
+
+            insertExchangeDetails(
+                    transactionId,
+                    sourceAccount.id,
+                    destinationAccount.id,
+                    destinationAmount,
+                    fromCurrency,
+                    toCurrency,
+                    exchangeRate
+            );
+
+            connection.commit();
+            System.out.println("Exchange JDBC completed successfully.");
+
+        } catch (SQLException e) {
+            try {
+                connection.rollback();
+                System.out.println("Exchange JDBC failed. Rollback executed.");
+            } catch (SQLException rollbackException) {
+                throw new RuntimeException("Rollback failed.", rollbackException);
+            }
+
+            throw new RuntimeException("Exchange JDBC failed: " + e.getMessage(), e);
+
+        } finally {
+            try {
+                connection.setAutoCommit(true);
+            } catch (SQLException e) {
+                throw new RuntimeException("Could not reset autoCommit.", e);
+            }
+        }
+    }
+
     private AccountDbData getAccountForUpdate(String iban) throws SQLException {
         String sql = """
-                SELECT id, balance
+                SELECT id, balance, currency
                 FROM accounts
                 WHERE iban = ?
                 FOR UPDATE
@@ -415,7 +493,8 @@ public class AccountService {
                 if (resultSet.next()) {
                     return new AccountDbData(
                             resultSet.getInt("id"),
-                            resultSet.getDouble("balance")
+                            resultSet.getDouble("balance"),
+                            resultSet.getString("currency")
                     );
                 }
             }
@@ -518,6 +597,45 @@ public class AccountService {
         }
     }
 
+    private void insertExchangeDetails(
+            int transactionId,
+            int sourceAccountId,
+            int destinationAccountId,
+            double destinationAmount,
+            Currency fromCurrency,
+            Currency toCurrency,
+            double exchangeRate
+    ) throws SQLException {
+        String sql = """
+                INSERT INTO exchange_transactions (
+                    transaction_id,
+                    source_account_id,
+                    destination_account_id,
+                    destination_amount,
+                    from_currency,
+                    to_currency,
+                    exchange_rate
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, transactionId);
+            statement.setInt(2, sourceAccountId);
+            statement.setInt(3, destinationAccountId);
+            statement.setDouble(4, destinationAmount);
+            statement.setString(5, fromCurrency.name());
+            statement.setString(6, toCurrency.name());
+            statement.setDouble(7, exchangeRate);
+
+            int affectedRows = statement.executeUpdate();
+
+            if (affectedRows == 0) {
+                throw new SQLException("Could not insert exchange details.");
+            }
+        }
+    }
+
     private void insertTransferDetails(
             int transactionId,
             int sourceAccountId,
@@ -548,10 +666,12 @@ public class AccountService {
     private static class AccountDbData {
         private final int id;
         private final double balance;
+        private final String currency;
 
-        private AccountDbData(int id, double balance) {
+        private AccountDbData(int id, double balance, String currency) {
             this.id = id;
             this.balance = balance;
+            this.currency = currency;
         }
     }
 
