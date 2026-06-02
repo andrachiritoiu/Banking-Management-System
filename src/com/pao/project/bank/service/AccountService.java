@@ -175,6 +175,53 @@ public class AccountService {
         transactionService.recordTransaction(deposit);
     }
 
+    // etapa 2
+    public void depositJdbc(String iban, double amount) {
+        if (iban == null) {
+            throw new IllegalArgumentException("IBAN cannot be null.");
+        }
+
+        if (amount <= 0) {
+            throw new IllegalArgumentException("Deposit amount must be positive.");
+        }
+
+        try {
+            connection.setAutoCommit(false);
+
+            AccountDbData account = getAccountForUpdate(iban);
+
+            updateAccountBalance(account.id, amount);
+
+            int transactionId = insertTransaction(
+                    TransactionType.DEPOSIT,
+                    amount,
+                    "Deposit operation"
+            );
+
+            insertDepositDetails(transactionId, account.id);
+
+            connection.commit();
+            System.out.println("Deposit JDBC completed successfully.");
+
+        } catch (SQLException e) {
+            try {
+                connection.rollback();
+                System.out.println("Deposit JDBC failed. Rollback executed.");
+            } catch (SQLException rollbackException) {
+                throw new RuntimeException("Rollback failed.", rollbackException);
+            }
+
+            throw new RuntimeException("Deposit JDBC failed: " + e.getMessage(), e);
+
+        } finally {
+            try {
+                connection.setAutoCommit(true);
+            } catch (SQLException e) {
+                throw new RuntimeException("Could not reset autoCommit.", e);
+            }
+        }
+    }
+
     public void withdraw(String iban, double amount) {
         if (iban == null) {
             throw new IllegalArgumentException("IBAN cannot be null.");
@@ -268,7 +315,11 @@ public class AccountService {
             updateAccountBalance(sourceAccount.id, -amount);
             updateAccountBalance(destinationAccount.id, amount);
 
-            int transactionId = insertTransferTransaction(amount);
+            int transactionId = insertTransaction(
+                    TransactionType.TRANSFER,
+                    amount,
+                    "Transfer operation"
+            );
 
             insertTransferDetails(
                     transactionId,
@@ -341,7 +392,7 @@ public class AccountService {
         }
     }
 
-    private int insertTransferTransaction(double amount) throws SQLException {
+    private int insertTransaction(TransactionType transactionType, double amount, String description) throws SQLException {
         String sql = """
                 INSERT INTO transactions (
                     transaction_type,
@@ -353,15 +404,15 @@ public class AccountService {
                 """;
 
         try (PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            statement.setString(1, TransactionType.TRANSFER.name());
+            statement.setString(1, transactionType.name());
             statement.setDouble(2, amount);
             statement.setTimestamp(3, Timestamp.valueOf(LocalDateTime.now()));
-            statement.setString(4, "Transfer operation");
+            statement.setString(4, description);
 
             int affectedRows = statement.executeUpdate();
 
             if (affectedRows == 0) {
-                throw new SQLException("Could not insert transfer transaction.");
+                throw new SQLException("Could not insert transaction.");
             }
 
             try (ResultSet generatedKeys = statement.getGeneratedKeys()) {
@@ -372,6 +423,27 @@ public class AccountService {
         }
 
         throw new SQLException("Could not get generated transaction id.");
+    }
+
+    private void insertDepositDetails(int transactionId, int destinationAccountId) throws SQLException {
+        String sql = """
+                INSERT INTO deposit_transactions (
+                    transaction_id,
+                    destination_account_id
+                )
+                VALUES (?, ?)
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, transactionId);
+            statement.setInt(2, destinationAccountId);
+
+            int affectedRows = statement.executeUpdate();
+
+            if (affectedRows == 0) {
+                throw new SQLException("Could not insert deposit details.");
+            }
+        }
     }
 
     private void insertTransferDetails(

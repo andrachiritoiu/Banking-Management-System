@@ -387,7 +387,7 @@ public class Main {
                     }
 
                     case 7 -> {
-                        accountService.deposit(readLine("IBAN: "), readDouble("Amount: "));
+                        accountService.depositJdbc(readLine("IBAN: "), readDouble("Amount: "));
                         System.out.println("Deposit completed.");
                     }
 
