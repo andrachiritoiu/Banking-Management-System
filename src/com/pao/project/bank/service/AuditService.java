@@ -8,9 +8,8 @@ import java.nio.file.StandardOpenOption;
 import java.time.LocalDateTime;
 
 public class AuditService {
-    private static final AuditService INSTANCE = new AuditService();
-
     private static final Path AUDIT_FILE_PATH = Path.of("audit.csv");
+    private static final AuditService INSTANCE = new AuditService();
 
     private AuditService() {
         createFileWithHeaderIfNeeded();

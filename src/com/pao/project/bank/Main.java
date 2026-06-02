@@ -24,28 +24,74 @@ import com.pao.project.bank.service.CreditService;
 import com.pao.project.bank.service.EmployeeService;
 import com.pao.project.bank.service.ReportService;
 import com.pao.project.bank.service.TransactionService;
+import com.pao.project.bank.util.DatabaseConnection;
+import com.pao.project.bank.util.DatabaseSeeder;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.YearMonth;
+import java.util.Random;
 import java.util.Scanner;
 
 public class Main {
     private static final Scanner scanner = new Scanner(System.in);
 
-    private static final ClientService clientService = ClientService.getInstance();
-    private static final EmployeeService employeeService = EmployeeService.getInstance();
-    private static final AccountService accountService = AccountService.getInstance();
-    private static final CardService cardService = CardService.getInstance();
-    private static final TransactionService transactionService = TransactionService.getInstance();
-    private static final ChequeService chequeService = ChequeService.getInstance();
-    private static final ReportService reportService = ReportService.getInstance();
-    private static final CreditService creditService = CreditService.getInstance();
+    private static ClientService clientService;
+    private static EmployeeService employeeService;
+    private static AccountService accountService;
+    private static CardService cardService;
+    private static TransactionService transactionService;
+    private static ChequeService chequeService;
+    private static ReportService reportService;
+    private static CreditService creditService;
+    private static boolean databaseMode;
 
     public static void main(String[] args) {
         printHeader("BANKING MANAGEMENT SYSTEM");
-        seedDemoData();
-        System.out.println("Demo data loaded successfully.");
+
+        if (args.length > 0 && "--seed-db".equalsIgnoreCase(args[0])) {
+            DatabaseSeeder.seedDemoData();
+            System.out.println("Database demo data seeded successfully.");
+            return;
+        }
+
+        databaseMode = trySeedDatabaseDemoData();
+        initializeServices();
+
+        if (databaseMode) {
+            System.out.println("MySQL is available. Database demo data seeded successfully.");
+            System.out.println("In-memory demo data was not loaded.");
+        } else {
+            seedDemoData();
+            System.out.println("MySQL is not available. In-memory demo data loaded successfully.");
+        }
+
         runMenu();
+    }
+
+    private static boolean trySeedDatabaseDemoData() {
+        try {
+            DatabaseSeeder.seedDemoData();
+            return true;
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    private static void initializeServices() {
+        clientService = ClientService.getInstance();
+        employeeService = EmployeeService.getInstance();
+        accountService = AccountService.getInstance();
+        cardService = CardService.getInstance();
+        transactionService = TransactionService.getInstance();
+        chequeService = ChequeService.getInstance();
+        reportService = ReportService.getInstance();
+        creditService = CreditService.getInstance();
     }
 
     private static void seedDemoData() {
@@ -108,6 +154,8 @@ public class Main {
                     6. Reports
                     7. Credits
                     8. View All Data
+                    9. Seed database demo data
+                    10. Show startup mode
                     0. Exit
                     """);
 
@@ -123,6 +171,14 @@ public class Main {
                     case 6 -> reportMenu();
                     case 7 -> creditMenu();
                     case 8 -> showAllData();
+                    case 9 -> {
+                        DatabaseSeeder.seedDemoData();
+                        databaseMode = true;
+                        System.out.println("Database demo data seeded successfully.");
+                    }
+                    case 10 -> System.out.println(databaseMode
+                            ? "Startup mode: MySQL database. In-memory demo data was not loaded."
+                            : "Startup mode: in-memory fallback. MySQL seed was not available at startup.");
                     case 0 -> {
                         System.out.println("Exiting...");
                         running = false;
@@ -156,6 +212,11 @@ public class Main {
             int op = readInt("Choose: ");
 
             try {
+                if (databaseMode) {
+                    back = handleClientMenuJdbc(op);
+                    continue;
+                }
+
                 switch (op) {
                     case 1 -> clientService.getAllClients().forEach(System.out::println);
 
@@ -242,6 +303,11 @@ public class Main {
             int op = readInt("Choose: ");
 
             try {
+                if (databaseMode) {
+                    back = handleEmployeeMenuJdbc(op);
+                    continue;
+                }
+
                 switch (op) {
                     case 1 -> employeeService.getAllEmployees().forEach(System.out::println);
 
@@ -325,6 +391,11 @@ public class Main {
             int op = readInt("Choose: ");
 
             try {
+                if (databaseMode) {
+                    back = handleAccountMenuJdbc(op);
+                    continue;
+                }
+
                 switch (op) {
                     case 1 -> accountService.getAllAccounts().forEach(System.out::println);
 
@@ -488,6 +559,11 @@ public class Main {
             int op = readInt("Choose: ");
 
             try {
+                if (databaseMode) {
+                    back = handleCardMenuJdbc(op);
+                    continue;
+                }
+
                 switch (op) {
                     case 1 -> {
                         Account acc = accountService.findByIban(readLine("IBAN: "));
@@ -570,6 +646,11 @@ public class Main {
             int op = readInt("Choose: ");
 
             try {
+                if (databaseMode) {
+                    back = handleChequeMenuJdbc(op);
+                    continue;
+                }
+
                 switch (op) {
                     case 1 -> {
                         Account issuer = accountService.findByIban(readLine("Issuer IBAN: "));
@@ -657,6 +738,11 @@ public class Main {
             int op = readInt("Choose: ");
 
             try {
+                if (databaseMode) {
+                    back = handleReportMenuJdbc(op);
+                    continue;
+                }
+
                 switch (op) {
                     case 1 -> {
                         Account acc = accountService.findByIban(readLine("IBAN: "));
@@ -776,6 +862,11 @@ public class Main {
             int op = readInt("Choose: ");
 
             try {
+                if (databaseMode) {
+                    back = handleCreditMenuJdbc(op);
+                    continue;
+                }
+
                 switch (op) {
                     case 1 -> {
                         Client borrower = clientService.findByClientCode(readLine("Client code: "));
@@ -848,6 +939,187 @@ public class Main {
         }
     }
 
+    private static boolean handleClientMenuJdbc(int op) throws SQLException {
+        switch (op) {
+            case 1 -> showDatabaseClients();
+            case 2 -> addIndividualClientJdbc();
+            case 3 -> addCorporateClientJdbc();
+            case 4 -> updateJdbc("UPDATE clients SET active = FALSE WHERE client_code = ?", readLine("Client code: "));
+            case 5 -> showClientByColumnJdbc("c.client_code", readLine("Client code: "));
+            case 6 -> showClientByColumnJdbc("ic.cnp", readLine("CNP: "));
+            case 7 -> showClientByColumnJdbc("cc.cui", readLine("CUI: "));
+            case 8 -> showClientsSortedByNameJdbc();
+            case 0 -> {
+                return true;
+            }
+            default -> System.out.println("Invalid option.");
+        }
+
+        return false;
+    }
+
+    private static boolean handleEmployeeMenuJdbc(int op) throws SQLException {
+        switch (op) {
+            case 1 -> showDatabaseEmployees();
+            case 2 -> addBankTellerJdbc();
+            case 3 -> addFinancialAdvisorJdbc();
+            case 4 -> deleteEmployeeJdbc(readLine("Employee code: "));
+            case 5 -> showEmployeeByColumnJdbc("e.employee_code", readLine("Employee code: "));
+            case 6 -> showEmployeeByColumnJdbc("p.email", readLine("Email: "));
+            case 7 -> showBankTellersByDeskJdbc(readInt("Desk number: "));
+            case 8 -> showFinancialAdvisorsBySpecializationJdbc(readLine("Specialization: "));
+            case 0 -> {
+                return true;
+            }
+            default -> System.out.println("Invalid option.");
+        }
+
+        return false;
+    }
+
+    private static boolean handleAccountMenuJdbc(int op) throws SQLException {
+        switch (op) {
+            case 1 -> showDatabaseAccounts();
+            case 2 -> openAccountFromMenuJdbc("CURRENT");
+            case 3 -> openAccountFromMenuJdbc("SAVINGS");
+            case 4 -> showAccountByIbanJdbc(readLine("IBAN: "));
+            case 5 -> showAccountsForClientCodeJdbc(readLine("Client code: "));
+            case 6 -> {
+                accountService.closeAccountJdbc(readLine("IBAN: "));
+                System.out.println("Account close operation executed.");
+            }
+            case 7 -> {
+                accountService.depositJdbc(readLine("IBAN: "), readDouble("Amount: "));
+                System.out.println("Deposit completed.");
+            }
+            case 8 -> {
+                accountService.withdrawJdbc(readLine("IBAN: "), readDouble("Amount: "));
+                System.out.println("Withdrawal completed.");
+            }
+            case 9 -> {
+                accountService.transferJdbc(readLine("Source IBAN: "), readLine("Destination IBAN: "), readDouble("Amount: "));
+                System.out.println("Transfer completed.");
+            }
+            case 10 -> {
+                accountService.exchangeJdbc(
+                        readLine("Source IBAN: "),
+                        readLine("Destination IBAN: "),
+                        readDouble("Source amount: "),
+                        readDouble("Exchange rate: ")
+                );
+                System.out.println("Exchange completed.");
+            }
+            case 11 -> setAliasJdbc(readLine("Alias: "), readLine("IBAN: "));
+            case 12 -> showAliasJdbc(readLine("Alias: "));
+            case 13 -> transferByAliasJdbc(readLine("Source IBAN: "), readLine("Destination alias: "), readDouble("Amount: "));
+            case 14 -> showAliasesJdbc();
+            case 15 -> showTransactionsForAccountJdbc(readLine("IBAN: "), null);
+            case 16 -> {
+                String iban = readLine("IBAN: ");
+                System.out.println("1. Deposit");
+                System.out.println("2. Withdrawal");
+                System.out.println("3. Transfer");
+                System.out.println("4. Exchange");
+                TransactionType type = readTransactionType(readInt("Choose type: "));
+                showTransactionsForAccountJdbc(iban, type);
+            }
+            case 17 -> showTransactionsForAccountJdbc(readLine("IBAN: "), null);
+            case 0 -> {
+                return true;
+            }
+            default -> System.out.println("Invalid option.");
+        }
+
+        return false;
+    }
+
+    private static boolean handleCardMenuJdbc(int op) throws SQLException {
+        switch (op) {
+            case 1 -> issueCardJdbc(readLine("IBAN: "), LocalDate.now().plusYears(3), true);
+            case 2 -> issueCardJdbc(
+                    readLine("IBAN: "),
+                    LocalDate.now().plusYears(readInt("Years until expiration: ")),
+                    readLine("Contactless (true/false): ").equalsIgnoreCase("true")
+            );
+            case 3 -> showCardByNumberJdbc(readLine("Card number: "));
+            case 4 -> updateCardStatusJdbc(readLine("Card number: "), "BLOCKED");
+            case 5 -> updateCardStatusJdbc(readLine("Card number: "), "ACTIVE");
+            case 6 -> validateCardJdbc(readLine("Card number: "));
+            case 7 -> showDatabaseCards();
+            case 8 -> showCardsForAccountJdbc(readLine("IBAN: "));
+            case 0 -> {
+                return true;
+            }
+            default -> System.out.println("Invalid option.");
+        }
+
+        return false;
+    }
+
+    private static boolean handleChequeMenuJdbc(int op) throws SQLException {
+        switch (op) {
+            case 1 -> issueChequeJdbc();
+            case 2 -> showChequeBySeriesJdbc(readLine("Series: "));
+            case 3 -> showDatabaseCheques();
+            case 4 -> showChequesByStatusJdbc(readChequeStatusOption());
+            case 5 -> updateChequeStatusJdbc(readLine("Cheque series: "), "CASHED");
+            case 6 -> updateChequeStatusJdbc(readLine("Cheque series: "), "CANCELLED");
+            case 0 -> {
+                return true;
+            }
+            default -> System.out.println("Invalid option.");
+        }
+
+        return false;
+    }
+
+    private static boolean handleReportMenuJdbc(int op) throws SQLException {
+        switch (op) {
+            case 1 -> reportService.getAccountStatementJdbc(readLine("IBAN: ")).forEach(System.out::println);
+            case 2 -> showAccountFlowTotalJdbc(readLine("IBAN: "), true);
+            case 3 -> showAccountFlowTotalJdbc(readLine("IBAN: "), false);
+            case 4 -> showTransactionsForAccountJdbc(readLine("IBAN: "), null);
+            case 5 -> showMonthlyStatementJdbc(readLine("IBAN: "), YearMonth.parse(readLine("Month (YYYY-MM): ")));
+            case 6 -> showMonthlyFlowJdbc(readLine("IBAN: "), true);
+            case 7 -> showMonthlyFlowJdbc(readLine("IBAN: "), false);
+            case 8 -> reportService.getClientBalanceSummaryJdbc().forEach(System.out::println);
+            case 9 -> showTransactionsGroupedByTypeJdbc();
+            case 10 -> showAccountsGroupedByCurrencyJdbc();
+            case 11 -> showCreditsGroupedByStatusJdbc();
+            case 0 -> {
+                return true;
+            }
+            default -> System.out.println("Invalid option.");
+        }
+
+        return false;
+    }
+
+    private static boolean handleCreditMenuJdbc(int op) throws SQLException {
+        switch (op) {
+            case 1 -> applyForCreditFromMenuJdbc();
+            case 2 -> approveCreditJdbc(readInt("Credit ID: "));
+            case 3 -> updateJdbc("UPDATE credits SET status = 'REJECTED' WHERE id = ?", readInt("Credit ID: "));
+            case 4 -> creditService.payInstallmentJdbc(readInt("Credit ID: "), readInt("Installment number: "));
+            case 5 -> showCreditByIdJdbc(readInt("Credit ID: "));
+            case 6 -> showDatabaseCredits();
+            case 7 -> showCreditsForClientJdbc(readLine("Client code: "));
+            case 8 -> showCreditsByStatusJdbc(readCreditStatus(readInt("""
+                    1. Pending
+                    2. Active
+                    3. Paid
+                    4. Rejected
+                    5. Defaulted
+                    Status: """)).name());
+            case 0 -> {
+                return true;
+            }
+            default -> System.out.println("Invalid option.");
+        }
+
+        return false;
+    }
+
     private static CreditType readCreditType(int option) {
         return switch (option) {
             case 1 -> CreditType.PERSONAL;
@@ -868,7 +1140,499 @@ public class Main {
         };
     }
 
+    private static TransactionType readTransactionType(int option) {
+        return switch (option) {
+            case 1 -> TransactionType.DEPOSIT;
+            case 2 -> TransactionType.WITHDRAWAL;
+            case 3 -> TransactionType.TRANSFER;
+            case 4 -> TransactionType.EXCHANGE;
+            default -> throw new IllegalArgumentException("Invalid transaction type.");
+        };
+    }
+
+    private static String readChequeStatusOption() {
+        System.out.println("1. ISSUED");
+        System.out.println("2. CASHED");
+        System.out.println("3. CANCELLED");
+        System.out.println("4. EXPIRED");
+        return switch (readInt("Choose status: ")) {
+            case 1 -> "ISSUED";
+            case 2 -> "CASHED";
+            case 3 -> "CANCELLED";
+            case 4 -> "EXPIRED";
+            default -> throw new IllegalArgumentException("Invalid cheque status.");
+        };
+    }
+
+    private static void addIndividualClientJdbc() throws SQLException {
+        int id = readInt("ID: ");
+        String email = readLine("Email: ");
+        String phone = readLine("Phone: ");
+        String clientCode = readLine("Client code: ");
+        String firstName = readLine("First name: ");
+        String lastName = readLine("Last name: ");
+        String cnp = readLine("CNP: ");
+        LocalDate birthDate = readBirthDateFromCnp(cnp);
+
+        executeInTransaction(connection -> {
+            insertPersonJdbc(connection, id, "CLIENT", email, phone);
+            insertClientJdbc(connection, id, clientCode, "INDIVIDUAL", true);
+            updateJdbc(connection, """
+                    INSERT INTO individual_clients (client_id, first_name, last_name, cnp, birth_date)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE
+                        first_name = VALUES(first_name),
+                        last_name = VALUES(last_name),
+                        cnp = VALUES(cnp),
+                        birth_date = VALUES(birth_date)
+                    """, id, firstName, lastName, cnp, java.sql.Date.valueOf(birthDate));
+        });
+
+        System.out.println("Individual client saved in database.");
+    }
+
+    private static void addCorporateClientJdbc() throws SQLException {
+        System.out.println("Legal representative must already exist as an individual client.");
+        int id = readInt("Company ID: ");
+        String email = readLine("Company email: ");
+        String phone = readLine("Company phone: ");
+        String clientCode = readLine("Company client code: ");
+        String companyName = readLine("Company name: ");
+        String cui = readLine("CUI: ");
+        int representativeId = findClientIdByCodeJdbc(readLine("Representative client code: "));
+
+        executeInTransaction(connection -> {
+            insertPersonJdbc(connection, id, "CLIENT", email, phone);
+            insertClientJdbc(connection, id, clientCode, "CORPORATE", true);
+            updateJdbc(connection, """
+                    INSERT INTO corporate_clients (client_id, company_name, cui, legal_representative_id)
+                    VALUES (?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE
+                        company_name = VALUES(company_name),
+                        cui = VALUES(cui),
+                        legal_representative_id = VALUES(legal_representative_id)
+                    """, id, companyName, cui, representativeId);
+        });
+
+        System.out.println("Corporate client saved in database.");
+    }
+
+    private static void addBankTellerJdbc() throws SQLException {
+        int id = readInt("ID: ");
+        String email = readLine("Email: ");
+        String phone = readLine("Phone: ");
+        String lastName = readLine("Last name: ");
+        String firstName = readLine("First name: ");
+        String employeeCode = readLine("Employee code: ");
+        double salary = readDouble("Salary: ");
+        String branch = readLine("Branch: ");
+        int deskNumber = readInt("Desk number: ");
+
+        executeInTransaction(connection -> {
+            insertPersonJdbc(connection, id, "EMPLOYEE", email, phone);
+            insertEmployeeJdbc(connection, id, employeeCode, "BANK_TELLER", firstName, lastName, salary, branch);
+            updateJdbc(connection, """
+                    INSERT INTO bank_tellers (employee_id, desk_number)
+                    VALUES (?, ?)
+                    ON DUPLICATE KEY UPDATE desk_number = VALUES(desk_number)
+                    """, id, deskNumber);
+        });
+
+        System.out.println("Bank teller saved in database.");
+    }
+
+    private static void addFinancialAdvisorJdbc() throws SQLException {
+        int id = readInt("ID: ");
+        String email = readLine("Email: ");
+        String phone = readLine("Phone: ");
+        String lastName = readLine("Last name: ");
+        String firstName = readLine("First name: ");
+        String employeeCode = readLine("Employee code: ");
+        double salary = readDouble("Salary: ");
+        String branch = readLine("Branch: ");
+        String specialization = readLine("Specialization: ");
+
+        executeInTransaction(connection -> {
+            insertPersonJdbc(connection, id, "EMPLOYEE", email, phone);
+            insertEmployeeJdbc(connection, id, employeeCode, "FINANCIAL_ADVISOR", firstName, lastName, salary, branch);
+            updateJdbc(connection, """
+                    INSERT INTO financial_advisors (employee_id, specialization)
+                    VALUES (?, ?)
+                    ON DUPLICATE KEY UPDATE specialization = VALUES(specialization)
+                    """, id, specialization);
+        });
+
+        System.out.println("Financial advisor saved in database.");
+    }
+
+    private static void openAccountFromMenuJdbc(String accountType) throws SQLException {
+        int ownerId = findClientIdByCodeJdbc(readLine("Client code: "));
+        int accountId = readInt("ID: ");
+        String iban = IBAN.generate().getCode();
+        double balance = readDouble("Initial balance: ");
+        String currency = readLine("Currency: ");
+        LocalDate openingDate = LocalDate.now();
+
+        executeInTransaction(connection -> {
+            updateJdbc(connection, """
+                    INSERT INTO accounts (id, iban, account_type, balance, currency, active, opening_date, client_id)
+                    VALUES (?, ?, ?, ?, ?, TRUE, ?, ?)
+                    ON DUPLICATE KEY UPDATE
+                        iban = VALUES(iban),
+                        account_type = VALUES(account_type),
+                        balance = VALUES(balance),
+                        currency = VALUES(currency),
+                        active = VALUES(active),
+                        opening_date = VALUES(opening_date),
+                        client_id = VALUES(client_id)
+                    """, accountId, iban, accountType, balance, currency, java.sql.Date.valueOf(openingDate), ownerId);
+
+            if ("CURRENT".equals(accountType)) {
+                updateJdbc(connection, """
+                        INSERT INTO current_accounts (account_id, monthly_fee)
+                        VALUES (?, ?)
+                        ON DUPLICATE KEY UPDATE monthly_fee = VALUES(monthly_fee)
+                        """, accountId, readDouble("Monthly fee: "));
+            } else {
+                updateJdbc(connection, """
+                        INSERT INTO savings_accounts (account_id, interest_rate, withdrawals_this_month)
+                        VALUES (?, ?, 0)
+                        ON DUPLICATE KEY UPDATE interest_rate = VALUES(interest_rate)
+                        """, accountId, readDouble("Interest rate: "));
+            }
+        });
+
+        System.out.println(accountType + " account opened in database.");
+        System.out.println("Generated IBAN: " + iban);
+    }
+
+    private static void setAliasJdbc(String alias, String iban) throws SQLException {
+        int accountId = findAccountIdByIbanJdbc(iban);
+        updateJdbc("""
+                INSERT INTO iban_aliases (alias, account_id)
+                VALUES (?, ?)
+                ON DUPLICATE KEY UPDATE account_id = VALUES(account_id)
+                """, alias, accountId);
+        System.out.println("Alias saved in database.");
+    }
+
+    private static void transferByAliasJdbc(String sourceIban, String alias, double amount) throws SQLException {
+        String destinationIban = findStringJdbc("""
+                SELECT a.iban
+                FROM iban_aliases ia
+                JOIN accounts a ON ia.account_id = a.id
+                WHERE ia.alias = ?
+                """, alias);
+        accountService.transferJdbc(sourceIban, destinationIban, amount);
+        System.out.println("Transfer by alias completed.");
+    }
+
+    private static void issueCardJdbc(String iban, LocalDate expirationDate, boolean contactless) throws SQLException {
+        int accountId = findAccountIdByIbanJdbc(iban);
+        String cardNumber = generateDigits(16);
+        String cvv = generateDigits(3);
+
+        updateJdbc("""
+                INSERT INTO cards (card_number, cvv, expiration_date, contactless, status, account_id)
+                VALUES (?, ?, ?, ?, 'ACTIVE', ?)
+                """, cardNumber, cvv, java.sql.Date.valueOf(expirationDate), contactless, accountId);
+
+        System.out.println("Card issued in database: " + cardNumber);
+    }
+
+    private static void updateCardStatusJdbc(String cardNumber, String status) throws SQLException {
+        updateJdbc("UPDATE cards SET status = ? WHERE card_number = ?", status, cardNumber);
+        System.out.println("Card status updated.");
+    }
+
+    private static void validateCardJdbc(String cardNumber) throws SQLException {
+        String status = findStringJdbc("SELECT status FROM cards WHERE card_number = ?", cardNumber);
+        java.sql.Date expirationDate = findDateJdbc("SELECT expiration_date FROM cards WHERE card_number = ?", cardNumber);
+        boolean valid = "ACTIVE".equals(status) && expirationDate.toLocalDate().isAfter(LocalDate.now());
+        System.out.println(valid ? "Card is valid." : "Card is not valid.");
+    }
+
+    private static void issueChequeJdbc() throws SQLException {
+        int issuerAccountId = findAccountIdByIbanJdbc(readLine("Issuer IBAN: "));
+        int beneficiaryClientId = findClientIdByCodeJdbc(readLine("Beneficiary client code: "));
+        double amount = readDouble("Amount: ");
+        LocalDate issueDate = LocalDate.now();
+        LocalDate expiryDate = issueDate.plusDays(readInt("Valid days: "));
+        String series = "CEC" + generateDigits(9);
+
+        updateJdbc("""
+                INSERT INTO cheques (series, issuer_account_id, beneficiary_client_id, amount, issue_date, expiry_date, status)
+                VALUES (?, ?, ?, ?, ?, ?, 'ISSUED')
+                """, series, issuerAccountId, beneficiaryClientId, amount, java.sql.Date.valueOf(issueDate), java.sql.Date.valueOf(expiryDate));
+
+        System.out.println("Cheque issued in database: " + series);
+    }
+
+    private static void updateChequeStatusJdbc(String series, String status) throws SQLException {
+        updateJdbc("UPDATE cheques SET status = ? WHERE series = ?", status, series);
+        System.out.println("Cheque status updated.");
+    }
+
+    private static void applyForCreditFromMenuJdbc() throws SQLException {
+        int borrowerId = findClientIdByCodeJdbc(readLine("Client code: "));
+        int targetAccountId = findAccountIdByIbanJdbc(readLine("Target IBAN: "));
+        CreditType type = readCreditType(readInt("""
+                1. Personal
+                2. Mortgage
+                3. Business
+                Credit type: """));
+        double principalAmount = readDouble("Principal amount: ");
+        double annualInterestRate = readDouble("Annual interest rate: ");
+        int durationInMonths = readInt("Duration in months: ");
+        double totalAmount = principalAmount + principalAmount * annualInterestRate / 100.0 * durationInMonths / 12.0;
+
+        executeInTransaction(connection -> {
+            int creditId = insertCreditRawJdbc(connection, borrowerId, targetAccountId, type.name(), principalAmount, annualInterestRate, durationInMonths, totalAmount);
+            insertInstallmentsRawJdbc(connection, creditId, totalAmount, durationInMonths);
+        });
+
+        System.out.println("Credit application saved in database.");
+    }
+
+    private static void approveCreditJdbc(int creditId) throws SQLException {
+        executeInTransaction(connection -> {
+            CreditDbData credit = findCreditDbData(connection, creditId);
+            if (!"PENDING".equals(credit.status)) {
+                throw new SQLException("Only pending credits can be approved.");
+            }
+            updateJdbc(connection, "UPDATE credits SET status = 'ACTIVE', start_date = ? WHERE id = ?", java.sql.Date.valueOf(LocalDate.now()), creditId);
+            updateJdbc(connection, "UPDATE accounts SET balance = balance + ? WHERE id = ?", credit.principalAmount, credit.targetAccountId);
+        });
+        System.out.println("Credit approved in database.");
+    }
+
+    private static void showClientByColumnJdbc(String column, String value) throws SQLException {
+        showClientsWhereJdbc("WHERE " + column + " = ?", value, "CLIENT FROM DB");
+    }
+
+    private static void showClientsSortedByNameJdbc() throws SQLException {
+        showClientsWhereJdbc("ORDER BY display_name", null, "CLIENTS SORTED FROM DB");
+    }
+
+    private static void showClientsWhereJdbc(String clause, String parameter, String title) throws SQLException {
+        String sql = """
+                SELECT
+                    c.id,
+                    c.client_code,
+                    c.client_type,
+                    c.active,
+                    COALESCE(CONCAT(ic.first_name, ' ', ic.last_name), cc.company_name) AS display_name,
+                    p.email,
+                    p.phone_number
+                FROM clients c
+                JOIN persons p ON c.id = p.id
+                LEFT JOIN individual_clients ic ON c.id = ic.client_id
+                LEFT JOIN corporate_clients cc ON c.id = cc.client_id
+                """ + clause;
+        printDatabaseQuery("- " + title + " -", sql, resultSet -> String.format(
+                "id=%d, code=%s, type=%s, active=%s, name=%s, email=%s, phone=%s",
+                resultSet.getInt("id"),
+                resultSet.getString("client_code"),
+                resultSet.getString("client_type"),
+                resultSet.getBoolean("active"),
+                resultSet.getString("display_name"),
+                resultSet.getString("email"),
+                resultSet.getString("phone_number")
+        ), parameter == null ? new Object[]{} : new Object[]{parameter});
+    }
+
+    private static void showEmployeeByColumnJdbc(String column, String value) throws SQLException {
+        printDatabaseQuery("- EMPLOYEE FROM DB -", employeeBaseSql() + " WHERE " + column + " = ?", Main::formatEmployeeRow, value);
+    }
+
+    private static void showBankTellersByDeskJdbc(int deskNumber) throws SQLException {
+        printDatabaseQuery("- BANK TELLERS FROM DB -", employeeBaseSql() + """
+                JOIN bank_tellers bt ON e.id = bt.employee_id
+                WHERE bt.desk_number = ?
+                """, Main::formatEmployeeRow, deskNumber);
+    }
+
+    private static void showFinancialAdvisorsBySpecializationJdbc(String specialization) throws SQLException {
+        printDatabaseQuery("- FINANCIAL ADVISORS FROM DB -", employeeBaseSql() + """
+                JOIN financial_advisors fa ON e.id = fa.employee_id
+                WHERE fa.specialization = ?
+                """, Main::formatEmployeeRow, specialization);
+    }
+
+    private static void deleteEmployeeJdbc(String employeeCode) throws SQLException {
+        updateJdbc("""
+                DELETE p FROM persons p
+                JOIN employees e ON p.id = e.id
+                WHERE e.employee_code = ?
+                """, employeeCode);
+        System.out.println("Employee deleted from database if it existed.");
+    }
+
+    private static void showAccountByIbanJdbc(String iban) throws SQLException {
+        printDatabaseQuery("- ACCOUNT FROM DB -", accountBaseSql() + " WHERE a.iban = ?", Main::formatAccountRow, iban);
+    }
+
+    private static void showAccountsForClientCodeJdbc(String clientCode) throws SQLException {
+        printDatabaseQuery("- ACCOUNTS FOR CLIENT FROM DB -", accountBaseSql() + " WHERE c.client_code = ?", Main::formatAccountRow, clientCode);
+    }
+
+    private static void showAliasJdbc(String alias) throws SQLException {
+        printDatabaseQuery("- ALIAS FROM DB -", """
+                SELECT ia.alias, a.iban
+                FROM iban_aliases ia
+                JOIN accounts a ON ia.account_id = a.id
+                WHERE ia.alias = ?
+                """, resultSet -> resultSet.getString("alias") + " -> " + resultSet.getString("iban"), alias);
+    }
+
+    private static void showAliasesJdbc() throws SQLException {
+        printDatabaseQuery("- ALIASES FROM DB -", """
+                SELECT ia.alias, a.iban
+                FROM iban_aliases ia
+                JOIN accounts a ON ia.account_id = a.id
+                ORDER BY ia.alias
+                """, resultSet -> resultSet.getString("alias") + " -> " + resultSet.getString("iban"));
+    }
+
+    private static void showTransactionsForAccountJdbc(String iban, TransactionType type) throws SQLException {
+        String typeFilter = type == null ? "" : " AND t.transaction_type = ?";
+        String sql = """
+                SELECT DISTINCT t.id, t.transaction_type, t.amount, t.`timestamp`, t.description
+                FROM transactions t
+                LEFT JOIN deposit_transactions dt ON t.id = dt.transaction_id
+                LEFT JOIN withdrawal_transactions wt ON t.id = wt.transaction_id
+                LEFT JOIN transfer_transactions tt ON t.id = tt.transaction_id
+                LEFT JOIN exchange_transactions et ON t.id = et.transaction_id
+                LEFT JOIN accounts da ON dt.destination_account_id = da.id
+                LEFT JOIN accounts wa ON wt.source_account_id = wa.id
+                LEFT JOIN accounts tsa ON tt.source_account_id = tsa.id
+                LEFT JOIN accounts tda ON tt.destination_account_id = tda.id
+                LEFT JOIN accounts esa ON et.source_account_id = esa.id
+                LEFT JOIN accounts eda ON et.destination_account_id = eda.id
+                WHERE (da.iban = ? OR wa.iban = ? OR tsa.iban = ? OR tda.iban = ? OR esa.iban = ? OR eda.iban = ?)
+                """ + typeFilter + " ORDER BY t.`timestamp`";
+        if (type == null) {
+            printDatabaseQuery("- TRANSACTIONS FOR ACCOUNT FROM DB -", sql, Main::formatTransactionRow, iban, iban, iban, iban, iban, iban);
+        } else {
+            printDatabaseQuery("- TRANSACTIONS FOR ACCOUNT FROM DB -", sql, Main::formatTransactionRow, iban, iban, iban, iban, iban, iban, type.name());
+        }
+    }
+
+    private static void showCardByNumberJdbc(String cardNumber) throws SQLException {
+        printDatabaseQuery("- CARD FROM DB -", "SELECT card_number, expiration_date, contactless, status, account_id FROM cards WHERE card_number = ?", Main::formatCardRow, cardNumber);
+    }
+
+    private static void showCardsForAccountJdbc(String iban) throws SQLException {
+        printDatabaseQuery("- CARDS FOR ACCOUNT FROM DB -", """
+                SELECT c.card_number, c.expiration_date, c.contactless, c.status, c.account_id
+                FROM cards c
+                JOIN accounts a ON c.account_id = a.id
+                WHERE a.iban = ?
+                """, Main::formatCardRow, iban);
+    }
+
+    private static void showChequeBySeriesJdbc(String series) throws SQLException {
+        printDatabaseQuery("- CHEQUE FROM DB -", "SELECT series, issuer_account_id, beneficiary_client_id, amount, issue_date, expiry_date, status FROM cheques WHERE series = ?", Main::formatChequeRow, series);
+    }
+
+    private static void showChequesByStatusJdbc(String status) throws SQLException {
+        printDatabaseQuery("- CHEQUES BY STATUS FROM DB -", "SELECT series, issuer_account_id, beneficiary_client_id, amount, issue_date, expiry_date, status FROM cheques WHERE status = ?", Main::formatChequeRow, status);
+    }
+
+    private static void showAccountFlowTotalJdbc(String iban, boolean incoming) throws SQLException {
+        String sql = incoming ? """
+                SELECT COALESCE(SUM(amount), 0) AS total FROM (
+                    SELECT t.amount FROM transactions t JOIN deposit_transactions dt ON t.id = dt.transaction_id JOIN accounts a ON dt.destination_account_id = a.id WHERE a.iban = ?
+                    UNION ALL
+                    SELECT t.amount FROM transactions t JOIN transfer_transactions tt ON t.id = tt.transaction_id JOIN accounts a ON tt.destination_account_id = a.id WHERE a.iban = ?
+                ) x
+                """ : """
+                SELECT COALESCE(SUM(amount), 0) AS total FROM (
+                    SELECT t.amount FROM transactions t JOIN withdrawal_transactions wt ON t.id = wt.transaction_id JOIN accounts a ON wt.source_account_id = a.id WHERE a.iban = ?
+                    UNION ALL
+                    SELECT t.amount FROM transactions t JOIN transfer_transactions tt ON t.id = tt.transaction_id JOIN accounts a ON tt.source_account_id = a.id WHERE a.iban = ?
+                ) x
+                """;
+        System.out.println((incoming ? "Total inflows: " : "Total outflows: ") + findDoubleJdbc(sql, iban, iban));
+    }
+
+    private static void showMonthlyStatementJdbc(String iban, YearMonth month) throws SQLException {
+        printDatabaseQuery("- MONTHLY STATEMENT FROM DB -", """
+                SELECT t.id, t.transaction_type, t.amount, t.`timestamp`, t.description
+                FROM transactions t
+                JOIN transfer_transactions tt ON t.id = tt.transaction_id
+                JOIN accounts sa ON tt.source_account_id = sa.id
+                JOIN accounts da ON tt.destination_account_id = da.id
+                WHERE (sa.iban = ? OR da.iban = ?)
+                  AND t.`timestamp` >= ?
+                  AND t.`timestamp` < ?
+                ORDER BY t.`timestamp`
+                """, Main::formatTransactionRow, iban, iban, Timestamp.valueOf(month.atDay(1).atStartOfDay()), Timestamp.valueOf(month.plusMonths(1).atDay(1).atStartOfDay()));
+    }
+
+    private static void showMonthlyFlowJdbc(String iban, boolean incoming) throws SQLException {
+        String accountColumn = incoming ? "tt.destination_account_id" : "tt.source_account_id";
+        printDatabaseQuery(incoming ? "- MONTHLY INCOMING FROM DB -" : "- MONTHLY OUTGOING FROM DB -", """
+                SELECT DATE_FORMAT(t.`timestamp`, '%Y-%m') AS month, SUM(t.amount) AS total
+                FROM transactions t
+                JOIN transfer_transactions tt ON t.id = tt.transaction_id
+                JOIN accounts a ON """ + accountColumn + " = a.id " + """
+                WHERE a.iban = ?
+                GROUP BY DATE_FORMAT(t.`timestamp`, '%Y-%m')
+                ORDER BY month
+                """, resultSet -> resultSet.getString("month") + " -> " + resultSet.getDouble("total"), iban);
+    }
+
+    private static void showTransactionsGroupedByTypeJdbc() throws SQLException {
+        printDatabaseQuery("- TRANSACTIONS GROUPED BY TYPE FROM DB -", """
+                SELECT transaction_type, COUNT(*) AS transaction_count, SUM(amount) AS total_amount
+                FROM transactions
+                GROUP BY transaction_type
+                ORDER BY transaction_type
+                """, resultSet -> resultSet.getString("transaction_type") + " -> count=" + resultSet.getInt("transaction_count") + ", total=" + resultSet.getDouble("total_amount"));
+    }
+
+    private static void showAccountsGroupedByCurrencyJdbc() throws SQLException {
+        printDatabaseQuery("- ACCOUNTS GROUPED BY CURRENCY FROM DB -", """
+                SELECT currency, COUNT(*) AS account_count, SUM(balance) AS total_balance
+                FROM accounts
+                GROUP BY currency
+                ORDER BY currency
+                """, resultSet -> resultSet.getString("currency") + " -> count=" + resultSet.getInt("account_count") + ", totalBalance=" + resultSet.getDouble("total_balance"));
+    }
+
+    private static void showCreditsGroupedByStatusJdbc() throws SQLException {
+        printDatabaseQuery("- CREDITS GROUPED BY STATUS FROM DB -", """
+                SELECT status, COUNT(*) AS credit_count, SUM(remaining_amount) AS total_remaining
+                FROM credits
+                GROUP BY status
+                ORDER BY status
+                """, resultSet -> resultSet.getString("status") + " -> count=" + resultSet.getInt("credit_count") + ", remaining=" + resultSet.getDouble("total_remaining"));
+    }
+
+    private static void showCreditByIdJdbc(int creditId) throws SQLException {
+        printDatabaseQuery("- CREDIT FROM DB -", "SELECT id, borrower_id, target_account_id, credit_type, principal_amount, remaining_amount, status FROM credits WHERE id = ?", Main::formatCreditRow, creditId);
+    }
+
+    private static void showCreditsForClientJdbc(String clientCode) throws SQLException {
+        printDatabaseQuery("- CREDITS FOR CLIENT FROM DB -", """
+                SELECT cr.id, cr.borrower_id, cr.target_account_id, cr.credit_type, cr.principal_amount, cr.remaining_amount, cr.status
+                FROM credits cr
+                JOIN clients c ON cr.borrower_id = c.id
+                WHERE c.client_code = ?
+                """, Main::formatCreditRow, clientCode);
+    }
+
+    private static void showCreditsByStatusJdbc(String status) throws SQLException {
+        printDatabaseQuery("- CREDITS BY STATUS FROM DB -", "SELECT id, borrower_id, target_account_id, credit_type, principal_amount, remaining_amount, status FROM credits WHERE status = ?", Main::formatCreditRow, status);
+    }
+
     private static void showAllData() {
+        if (databaseMode) {
+            showAllDatabaseData();
+            return;
+        }
+
         System.out.println("\n- CLIENTS -");
         clientService.getAllClients().forEach(System.out::println);
 
@@ -891,6 +1655,544 @@ public class Main {
         transactionService.getAllTransactions().forEach(System.out::println);
     }
 
+    private static void showAllDatabaseData() {
+        try {
+            showDatabaseClients();
+            showDatabaseEmployees();
+            showDatabaseAccounts();
+            showDatabaseCards();
+            showDatabaseCheques();
+            showDatabaseCredits();
+            showDatabaseTransactions();
+        } catch (SQLException e) {
+            throw new RuntimeException("Could not show database data: " + e.getMessage(), e);
+        }
+    }
+
+    private static void showDatabaseClients() throws SQLException {
+        String sql = """
+                SELECT
+                    c.id,
+                    c.client_code,
+                    c.client_type,
+                    c.active,
+                    COALESCE(CONCAT(ic.first_name, ' ', ic.last_name), cc.company_name) AS display_name,
+                    p.email,
+                    p.phone_number
+                FROM clients c
+                JOIN persons p ON c.id = p.id
+                LEFT JOIN individual_clients ic ON c.id = ic.client_id
+                LEFT JOIN corporate_clients cc ON c.id = cc.client_id
+                ORDER BY c.id
+                """;
+
+        printDatabaseQuery("- CLIENTS FROM DB -", sql, resultSet -> String.format(
+                "id=%d, code=%s, type=%s, active=%s, name=%s, email=%s, phone=%s",
+                resultSet.getInt("id"),
+                resultSet.getString("client_code"),
+                resultSet.getString("client_type"),
+                resultSet.getBoolean("active"),
+                resultSet.getString("display_name"),
+                resultSet.getString("email"),
+                resultSet.getString("phone_number")
+        ));
+    }
+
+    private static void showDatabaseEmployees() throws SQLException {
+        String sql = """
+                SELECT
+                    e.id,
+                    e.employee_code,
+                    e.employee_type,
+                    e.first_name,
+                    e.last_name,
+                    e.salary,
+                    e.branch,
+                    p.email
+                FROM employees e
+                JOIN persons p ON e.id = p.id
+                ORDER BY e.id
+                """;
+
+        printDatabaseQuery("- EMPLOYEES FROM DB -", sql, resultSet -> String.format(
+                "id=%d, code=%s, type=%s, name=%s %s, salary=%.2f, branch=%s, email=%s",
+                resultSet.getInt("id"),
+                resultSet.getString("employee_code"),
+                resultSet.getString("employee_type"),
+                resultSet.getString("first_name"),
+                resultSet.getString("last_name"),
+                resultSet.getDouble("salary"),
+                resultSet.getString("branch"),
+                resultSet.getString("email")
+        ));
+    }
+
+    private static void showDatabaseAccounts() throws SQLException {
+        String sql = """
+                SELECT
+                    a.id,
+                    a.iban,
+                    a.account_type,
+                    a.balance,
+                    a.currency,
+                    a.active,
+                    a.client_id,
+                    COALESCE(CONCAT(ic.first_name, ' ', ic.last_name), cc.company_name) AS owner_name
+                FROM accounts a
+                JOIN clients c ON a.client_id = c.id
+                LEFT JOIN individual_clients ic ON c.id = ic.client_id
+                LEFT JOIN corporate_clients cc ON c.id = cc.client_id
+                ORDER BY a.id
+                """;
+
+        printDatabaseQuery("- ACCOUNTS FROM DB -", sql, resultSet -> String.format(
+                "id=%d, iban=%s, type=%s, balance=%.2f %s, active=%s, owner=%s(%d)",
+                resultSet.getInt("id"),
+                resultSet.getString("iban"),
+                resultSet.getString("account_type"),
+                resultSet.getDouble("balance"),
+                resultSet.getString("currency"),
+                resultSet.getBoolean("active"),
+                resultSet.getString("owner_name"),
+                resultSet.getInt("client_id")
+        ));
+    }
+
+    private static void showDatabaseCards() throws SQLException {
+        String sql = """
+                SELECT card_number, expiration_date, contactless, status, account_id
+                FROM cards
+                ORDER BY card_number
+                """;
+
+        printDatabaseQuery("- CARDS FROM DB -", sql, resultSet -> String.format(
+                "card=%s, expires=%s, contactless=%s, status=%s, account_id=%d",
+                resultSet.getString("card_number"),
+                resultSet.getDate("expiration_date"),
+                resultSet.getBoolean("contactless"),
+                resultSet.getString("status"),
+                resultSet.getInt("account_id")
+        ));
+    }
+
+    private static void showDatabaseCheques() throws SQLException {
+        String sql = """
+                SELECT series, issuer_account_id, beneficiary_client_id, amount, issue_date, expiry_date, status
+                FROM cheques
+                ORDER BY series
+                """;
+
+        printDatabaseQuery("- CHEQUES FROM DB -", sql, resultSet -> String.format(
+                "series=%s, issuer_account_id=%d, beneficiary_client_id=%d, amount=%.2f, issue=%s, expiry=%s, status=%s",
+                resultSet.getString("series"),
+                resultSet.getInt("issuer_account_id"),
+                resultSet.getInt("beneficiary_client_id"),
+                resultSet.getDouble("amount"),
+                resultSet.getDate("issue_date"),
+                resultSet.getDate("expiry_date"),
+                resultSet.getString("status")
+        ));
+    }
+
+    private static void showDatabaseCredits() throws SQLException {
+        String sql = """
+                SELECT id, borrower_id, target_account_id, credit_type, principal_amount, remaining_amount, status
+                FROM credits
+                ORDER BY id
+                """;
+
+        printDatabaseQuery("- CREDITS FROM DB -", sql, resultSet -> String.format(
+                "id=%d, borrower_id=%d, target_account_id=%d, type=%s, principal=%.2f, remaining=%.2f, status=%s",
+                resultSet.getInt("id"),
+                resultSet.getInt("borrower_id"),
+                resultSet.getInt("target_account_id"),
+                resultSet.getString("credit_type"),
+                resultSet.getDouble("principal_amount"),
+                resultSet.getDouble("remaining_amount"),
+                resultSet.getString("status")
+        ));
+    }
+
+    private static void showDatabaseTransactions() throws SQLException {
+        String sql = """
+                SELECT id, transaction_type, amount, `timestamp`, description
+                FROM transactions
+                ORDER BY `timestamp`
+                """;
+
+        printDatabaseQuery("- TRANSACTIONS FROM DB -", sql, resultSet -> String.format(
+                "id=%d, type=%s, amount=%.2f, timestamp=%s, description=%s",
+                resultSet.getInt("id"),
+                resultSet.getString("transaction_type"),
+                resultSet.getDouble("amount"),
+                resultSet.getTimestamp("timestamp"),
+                resultSet.getString("description")
+        ));
+    }
+
+    private static String employeeBaseSql() {
+        return """
+                SELECT
+                    e.id,
+                    e.employee_code,
+                    e.employee_type,
+                    e.first_name,
+                    e.last_name,
+                    e.salary,
+                    e.branch,
+                    p.email
+                FROM employees e
+                JOIN persons p ON e.id = p.id
+                """;
+    }
+
+    private static String accountBaseSql() {
+        return """
+                SELECT
+                    a.id,
+                    a.iban,
+                    a.account_type,
+                    a.balance,
+                    a.currency,
+                    a.active,
+                    a.client_id,
+                    COALESCE(CONCAT(ic.first_name, ' ', ic.last_name), cc.company_name) AS owner_name
+                FROM accounts a
+                JOIN clients c ON a.client_id = c.id
+                LEFT JOIN individual_clients ic ON c.id = ic.client_id
+                LEFT JOIN corporate_clients cc ON c.id = cc.client_id
+                """;
+    }
+
+    private static String formatEmployeeRow(ResultSet resultSet) throws SQLException {
+        return String.format(
+                "id=%d, code=%s, type=%s, name=%s %s, salary=%.2f, branch=%s, email=%s",
+                resultSet.getInt("id"),
+                resultSet.getString("employee_code"),
+                resultSet.getString("employee_type"),
+                resultSet.getString("first_name"),
+                resultSet.getString("last_name"),
+                resultSet.getDouble("salary"),
+                resultSet.getString("branch"),
+                resultSet.getString("email")
+        );
+    }
+
+    private static String formatAccountRow(ResultSet resultSet) throws SQLException {
+        return String.format(
+                "id=%d, iban=%s, type=%s, balance=%.2f %s, active=%s, owner=%s(%d)",
+                resultSet.getInt("id"),
+                resultSet.getString("iban"),
+                resultSet.getString("account_type"),
+                resultSet.getDouble("balance"),
+                resultSet.getString("currency"),
+                resultSet.getBoolean("active"),
+                resultSet.getString("owner_name"),
+                resultSet.getInt("client_id")
+        );
+    }
+
+    private static String formatCardRow(ResultSet resultSet) throws SQLException {
+        return String.format(
+                "card=%s, expires=%s, contactless=%s, status=%s, account_id=%d",
+                resultSet.getString("card_number"),
+                resultSet.getDate("expiration_date"),
+                resultSet.getBoolean("contactless"),
+                resultSet.getString("status"),
+                resultSet.getInt("account_id")
+        );
+    }
+
+    private static String formatChequeRow(ResultSet resultSet) throws SQLException {
+        return String.format(
+                "series=%s, issuer_account_id=%d, beneficiary_client_id=%d, amount=%.2f, issue=%s, expiry=%s, status=%s",
+                resultSet.getString("series"),
+                resultSet.getInt("issuer_account_id"),
+                resultSet.getInt("beneficiary_client_id"),
+                resultSet.getDouble("amount"),
+                resultSet.getDate("issue_date"),
+                resultSet.getDate("expiry_date"),
+                resultSet.getString("status")
+        );
+    }
+
+    private static String formatTransactionRow(ResultSet resultSet) throws SQLException {
+        return String.format(
+                "id=%d, type=%s, amount=%.2f, timestamp=%s, description=%s",
+                resultSet.getInt("id"),
+                resultSet.getString("transaction_type"),
+                resultSet.getDouble("amount"),
+                resultSet.getTimestamp("timestamp"),
+                resultSet.getString("description")
+        );
+    }
+
+    private static String formatCreditRow(ResultSet resultSet) throws SQLException {
+        return String.format(
+                "id=%d, borrower_id=%d, target_account_id=%d, type=%s, principal=%.2f, remaining=%.2f, status=%s",
+                resultSet.getInt("id"),
+                resultSet.getInt("borrower_id"),
+                resultSet.getInt("target_account_id"),
+                resultSet.getString("credit_type"),
+                resultSet.getDouble("principal_amount"),
+                resultSet.getDouble("remaining_amount"),
+                resultSet.getString("status")
+        );
+    }
+
+    private static void printDatabaseQuery(String title, String sql, ResultSetFormatter formatter, Object... parameters) throws SQLException {
+        System.out.println("\n" + title);
+
+        try (Connection connection = DatabaseConnection.getInstance().getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql);
+        ) {
+            bindParameters(statement, parameters);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+            boolean found = false;
+
+            while (resultSet.next()) {
+                found = true;
+                System.out.println(formatter.format(resultSet));
+            }
+
+            if (!found) {
+                System.out.println("(no rows)");
+            }
+            }
+        }
+    }
+
+    private static void updateJdbc(String sql, Object... parameters) throws SQLException {
+        try (Connection connection = DatabaseConnection.getInstance().getConnection()) {
+            updateJdbc(connection, sql, parameters);
+        }
+    }
+
+    private static void updateJdbc(Connection connection, String sql, Object... parameters) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            bindParameters(statement, parameters);
+            int affectedRows = statement.executeUpdate();
+            if (affectedRows == 0) {
+                System.out.println("No database rows were changed.");
+            }
+        }
+    }
+
+    private static void executeInTransaction(SqlWork work) throws SQLException {
+        Connection connection = DatabaseConnection.getInstance().getConnection();
+        try {
+            connection.setAutoCommit(false);
+            work.execute(connection);
+            connection.commit();
+        } catch (SQLException e) {
+            connection.rollback();
+            throw e;
+        } finally {
+            connection.setAutoCommit(true);
+        }
+    }
+
+    private static void insertPersonJdbc(Connection connection, int id, String personType, String email, String phone) throws SQLException {
+        updateJdbc(connection, """
+                INSERT INTO persons (id, person_type, email, phone_number)
+                VALUES (?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    person_type = VALUES(person_type),
+                    email = VALUES(email),
+                    phone_number = VALUES(phone_number)
+                """, id, personType, email, phone);
+    }
+
+    private static void insertClientJdbc(Connection connection, int id, String clientCode, String clientType, boolean active) throws SQLException {
+        updateJdbc(connection, """
+                INSERT INTO clients (id, client_code, client_type, active)
+                VALUES (?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    client_code = VALUES(client_code),
+                    client_type = VALUES(client_type),
+                    active = VALUES(active)
+                """, id, clientCode, clientType, active);
+    }
+
+    private static void insertEmployeeJdbc(Connection connection, int id, String code, String type, String firstName, String lastName, double salary, String branch) throws SQLException {
+        updateJdbc(connection, """
+                INSERT INTO employees (id, employee_code, employee_type, first_name, last_name, salary, branch)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    employee_code = VALUES(employee_code),
+                    employee_type = VALUES(employee_type),
+                    first_name = VALUES(first_name),
+                    last_name = VALUES(last_name),
+                    salary = VALUES(salary),
+                    branch = VALUES(branch)
+                """, id, code, type, firstName, lastName, salary, branch);
+    }
+
+    private static int insertCreditRawJdbc(Connection connection, int borrowerId, int targetAccountId, String type, double principal, double rate, int duration, double totalAmount) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("""
+                INSERT INTO credits (
+                    borrower_id, target_account_id, credit_type, principal_amount,
+                    annual_interest_rate, duration_in_months, start_date, remaining_amount, status
+                )
+                VALUES (?, ?, ?, ?, ?, ?, NULL, ?, 'PENDING')
+                """, PreparedStatement.RETURN_GENERATED_KEYS)) {
+            bindParameters(statement, borrowerId, targetAccountId, type, principal, rate, duration, totalAmount);
+            statement.executeUpdate();
+            try (ResultSet keys = statement.getGeneratedKeys()) {
+                if (keys.next()) {
+                    return keys.getInt(1);
+                }
+            }
+        }
+
+        throw new SQLException("Could not create credit.");
+    }
+
+    private static void insertInstallmentsRawJdbc(Connection connection, int creditId, double totalAmount, int duration) throws SQLException {
+        double monthlyAmount = Math.round((totalAmount / duration) * 100.0) / 100.0;
+        double assigned = 0;
+        for (int i = 1; i <= duration; i++) {
+            double amount = i == duration ? Math.round((totalAmount - assigned) * 100.0) / 100.0 : monthlyAmount;
+            assigned += amount;
+            updateJdbc(connection, """
+                    INSERT INTO credit_installments (credit_id, installment_number, due_date, amount, paid)
+                    VALUES (?, ?, ?, ?, FALSE)
+                    """, creditId, i, java.sql.Date.valueOf(LocalDate.now().plusMonths(i)), amount);
+        }
+    }
+
+    private static CreditDbData findCreditDbData(Connection connection, int creditId) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("""
+                SELECT id, target_account_id, principal_amount, status
+                FROM credits
+                WHERE id = ?
+                """)) {
+            statement.setInt(1, creditId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    return new CreditDbData(
+                            resultSet.getInt("id"),
+                            resultSet.getInt("target_account_id"),
+                            resultSet.getDouble("principal_amount"),
+                            resultSet.getString("status")
+                    );
+                }
+            }
+        }
+
+        throw new SQLException("Credit not found.");
+    }
+
+    private static int findClientIdByCodeJdbc(String clientCode) throws SQLException {
+        return findIntJdbc("SELECT id FROM clients WHERE client_code = ?", clientCode);
+    }
+
+    private static int findAccountIdByIbanJdbc(String iban) throws SQLException {
+        return findIntJdbc("SELECT id FROM accounts WHERE iban = ?", iban);
+    }
+
+    private static int findIntJdbc(String sql, Object... parameters) throws SQLException {
+        try (Connection connection = DatabaseConnection.getInstance().getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            bindParameters(statement, parameters);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    return resultSet.getInt(1);
+                }
+            }
+        }
+
+        throw new SQLException("Database value not found.");
+    }
+
+    private static double findDoubleJdbc(String sql, Object... parameters) throws SQLException {
+        try (Connection connection = DatabaseConnection.getInstance().getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            bindParameters(statement, parameters);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    return resultSet.getDouble(1);
+                }
+            }
+        }
+
+        return 0;
+    }
+
+    private static String findStringJdbc(String sql, Object... parameters) throws SQLException {
+        try (Connection connection = DatabaseConnection.getInstance().getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            bindParameters(statement, parameters);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    return resultSet.getString(1);
+                }
+            }
+        }
+
+        throw new SQLException("Database value not found.");
+    }
+
+    private static java.sql.Date findDateJdbc(String sql, Object... parameters) throws SQLException {
+        try (Connection connection = DatabaseConnection.getInstance().getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            bindParameters(statement, parameters);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    return resultSet.getDate(1);
+                }
+            }
+        }
+
+        throw new SQLException("Database value not found.");
+    }
+
+    private static void bindParameters(PreparedStatement statement, Object... parameters) throws SQLException {
+        for (int i = 0; i < parameters.length; i++) {
+            statement.setObject(i + 1, parameters[i]);
+        }
+    }
+
+    private static LocalDate readBirthDateFromCnp(String cnp) {
+        if (cnp == null || cnp.length() < 7) {
+            return LocalDate.now();
+        }
+
+        int century = switch (cnp.charAt(0)) {
+            case '1', '2' -> 1900;
+            case '5', '6' -> 2000;
+            default -> 1900;
+        };
+
+        int year = century + Integer.parseInt(cnp.substring(1, 3));
+        int month = Integer.parseInt(cnp.substring(3, 5));
+        int day = Integer.parseInt(cnp.substring(5, 7));
+        return LocalDate.of(year, month, day);
+    }
+
+    private static String generateDigits(int length) {
+        Random random = new Random();
+        StringBuilder value = new StringBuilder();
+        for (int i = 0; i < length; i++) {
+            value.append(random.nextInt(10));
+        }
+        return value.toString();
+    }
+
+    @FunctionalInterface
+    private interface ResultSetFormatter {
+        String format(ResultSet resultSet) throws SQLException;
+    }
+
+    @FunctionalInterface
+    private interface SqlWork {
+        void execute(Connection connection) throws SQLException;
+    }
+
+    private record CreditDbData(int id, int targetAccountId, double principalAmount, String status) {
+    }
+
     private static void printHeader(String title) {
         System.out.println("-------------------------");
         System.out.println(title);
@@ -898,29 +2200,52 @@ public class Main {
     }
 
     private static int readInt(String message) {
-        System.out.print(message);
-        while (!scanner.hasNextInt()) {
-            System.out.print("Enter a valid integer: ");
-            scanner.next();
+        while (true) {
+            System.out.print(message);
+            if (!scanner.hasNextLine()) {
+                return 0;
+            }
+
+            String value = scanner.nextLine().trim();
+            if (value.isEmpty()) {
+                message = "Enter a valid integer: ";
+                continue;
+            }
+
+            try {
+                return Integer.parseInt(value);
+            } catch (NumberFormatException e) {
+                message = "Enter a valid integer: ";
+            }
         }
-        int value = scanner.nextInt();
-        scanner.nextLine();
-        return value;
     }
 
     private static double readDouble(String message) {
-        System.out.print(message);
-        while (!scanner.hasNextDouble()) {
-            System.out.print("Enter a valid number: ");
-            scanner.next();
+        while (true) {
+            System.out.print(message);
+            if (!scanner.hasNextLine()) {
+                return 0.0;
+            }
+
+            String value = scanner.nextLine().trim();
+            if (value.isEmpty()) {
+                message = "Enter a valid number: ";
+                continue;
+            }
+
+            try {
+                return Double.parseDouble(value);
+            } catch (NumberFormatException e) {
+                message = "Enter a valid number: ";
+            }
         }
-        double value = scanner.nextDouble();
-        scanner.nextLine();
-        return value;
     }
 
     private static String readLine(String message) {
         System.out.print(message);
+        if (!scanner.hasNextLine()) {
+            return "";
+        }
         return scanner.nextLine();
     }
 }

@@ -36,11 +36,8 @@ public class AccountService {
 
     private final TransactionService transactionService = TransactionService.getInstance();
     private final AuditService auditService = AuditService.getInstance();
-    private final IndividualClientRepository individualClientRepository = new IndividualClientRepository();
-    private final CorporateClientRepository corporateClientRepository = new CorporateClientRepository();
-
-    // CONEXIUNE JDBC PENTRU ETAPA 2
-    private final Connection connection = DatabaseConnection.getInstance().getConnection();
+    private IndividualClientRepository individualClientRepository;
+    private CorporateClientRepository corporateClientRepository;
 
     private int transactionIdCounter = 1;
     private final List<Account> accounts = new ArrayList<>();
@@ -51,6 +48,26 @@ public class AccountService {
 
     public static AccountService getInstance() {
         return INSTANCE;
+    }
+
+    private Connection getConnection() {
+        return DatabaseConnection.getInstance().getConnection();
+    }
+
+    private IndividualClientRepository getIndividualClientRepository() {
+        if (individualClientRepository == null) {
+            individualClientRepository = new IndividualClientRepository();
+        }
+
+        return individualClientRepository;
+    }
+
+    private CorporateClientRepository getCorporateClientRepository() {
+        if (corporateClientRepository == null) {
+            corporateClientRepository = new CorporateClientRepository();
+        }
+
+        return corporateClientRepository;
     }
 
     public void openAccount(Account account) {
@@ -164,7 +181,7 @@ public class AccountService {
         }
 
         try {
-            connection.setAutoCommit(false);
+            getConnection().setAutoCommit(false);
 
             AccountCloseDbData account = getAccountForClose(iban);
 
@@ -178,12 +195,12 @@ public class AccountService {
 
             markAccountClosed(account.id);
 
-            connection.commit();
+            getConnection().commit();
             auditService.logAction("close_account_jdbc");
             System.out.println("Close account JDBC completed successfully.");
         } catch (SQLException e) {
             try {
-                connection.rollback();
+                getConnection().rollback();
                 System.out.println("Close account JDBC failed. Rollback executed.");
             } catch (SQLException rollbackException) {
                 throw new RuntimeException("Rollback failed.", rollbackException);
@@ -192,7 +209,7 @@ public class AccountService {
             throw new RuntimeException("Close account JDBC failed: " + e.getMessage(), e);
         } finally {
             try {
-                connection.setAutoCommit(true);
+                getConnection().setAutoCommit(true);
             } catch (SQLException e) {
                 throw new RuntimeException("Could not reset autoCommit.", e);
             }
@@ -302,7 +319,7 @@ public class AccountService {
         }
 
         try {
-            connection.setAutoCommit(false);
+            getConnection().setAutoCommit(false);
 
             AccountDbData account = getAccountForUpdate(iban);
 
@@ -316,13 +333,13 @@ public class AccountService {
 
             insertDepositDetails(transactionId, account.id);
 
-            connection.commit();
+            getConnection().commit();
             auditService.logAction("deposit_jdbc");
             System.out.println("Deposit JDBC completed successfully.");
 
         } catch (SQLException e) {
             try {
-                connection.rollback();
+                getConnection().rollback();
                 System.out.println("Deposit JDBC failed. Rollback executed.");
             } catch (SQLException rollbackException) {
                 throw new RuntimeException("Rollback failed.", rollbackException);
@@ -332,7 +349,7 @@ public class AccountService {
 
         } finally {
             try {
-                connection.setAutoCommit(true);
+                getConnection().setAutoCommit(true);
             } catch (SQLException e) {
                 throw new RuntimeException("Could not reset autoCommit.", e);
             }
@@ -380,7 +397,7 @@ public class AccountService {
         }
 
         try {
-            connection.setAutoCommit(false);
+            getConnection().setAutoCommit(false);
 
             AccountDbData account = getAccountForUpdate(iban);
 
@@ -398,13 +415,13 @@ public class AccountService {
 
             insertWithdrawalDetails(transactionId, account.id);
 
-            connection.commit();
+            getConnection().commit();
             auditService.logAction("withdraw_jdbc");
             System.out.println("Withdrawal JDBC completed successfully.");
 
         } catch (SQLException e) {
             try {
-                connection.rollback();
+                getConnection().rollback();
                 System.out.println("Withdrawal JDBC failed. Rollback executed.");
             } catch (SQLException rollbackException) {
                 throw new RuntimeException("Rollback failed.", rollbackException);
@@ -414,7 +431,7 @@ public class AccountService {
 
         } finally {
             try {
-                connection.setAutoCommit(true);
+                getConnection().setAutoCommit(true);
             } catch (SQLException e) {
                 throw new RuntimeException("Could not reset autoCommit.", e);
             }
@@ -474,7 +491,7 @@ public class AccountService {
         }
 
         try {
-            connection.setAutoCommit(false);
+            getConnection().setAutoCommit(false);
 
             AccountDbData sourceAccount = getAccountForUpdate(ibanSource);
             AccountDbData destinationAccount = getAccountForUpdate(ibanDestination);
@@ -498,13 +515,13 @@ public class AccountService {
                     destinationAccount.id
             );
 
-            connection.commit();
+            getConnection().commit();
             auditService.logAction("transfer_jdbc");
             System.out.println("Transfer JDBC completed successfully.");
 
         } catch (SQLException e) {
             try {
-                connection.rollback();
+                getConnection().rollback();
                 System.out.println("Transfer JDBC failed. Rollback executed.");
             } catch (SQLException rollbackException) {
                 throw new RuntimeException("Rollback failed.", rollbackException);
@@ -514,7 +531,7 @@ public class AccountService {
 
         } finally {
             try {
-                connection.setAutoCommit(true);
+                getConnection().setAutoCommit(true);
             } catch (SQLException e) {
                 throw new RuntimeException("Could not reset autoCommit.", e);
             }
@@ -540,7 +557,7 @@ public class AccountService {
         }
 
         try {
-            connection.setAutoCommit(false);
+            getConnection().setAutoCommit(false);
 
             AccountDbData sourceAccount = getAccountForUpdate(ibanSource);
             AccountDbData destinationAccount = getAccountForUpdate(ibanDestination);
@@ -577,13 +594,13 @@ public class AccountService {
                     exchangeRate
             );
 
-            connection.commit();
+            getConnection().commit();
             auditService.logAction("exchange_jdbc");
             System.out.println("Exchange JDBC completed successfully.");
 
         } catch (SQLException e) {
             try {
-                connection.rollback();
+                getConnection().rollback();
                 System.out.println("Exchange JDBC failed. Rollback executed.");
             } catch (SQLException rollbackException) {
                 throw new RuntimeException("Rollback failed.", rollbackException);
@@ -593,7 +610,7 @@ public class AccountService {
 
         } finally {
             try {
-                connection.setAutoCommit(true);
+                getConnection().setAutoCommit(true);
             } catch (SQLException e) {
                 throw new RuntimeException("Could not reset autoCommit.", e);
             }
@@ -608,7 +625,7 @@ public class AccountService {
                 FOR UPDATE
                 """;
 
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
             statement.setString(1, iban);
 
             try (ResultSet resultSet = statement.executeQuery()) {
@@ -632,7 +649,7 @@ public class AccountService {
                 WHERE iban = ?
                 """;
 
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
             statement.setString(1, iban);
 
             try (ResultSet resultSet = statement.executeQuery()) {
@@ -656,7 +673,7 @@ public class AccountService {
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """;
 
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
             statement.setInt(1, account.getId());
             statement.setString(2, account.getIban().getCode());
             statement.setString(3, account.getAccountType().name());
@@ -682,7 +699,7 @@ public class AccountService {
                 FOR UPDATE
                 """;
 
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
             statement.setString(1, iban);
 
             try (ResultSet resultSet = statement.executeQuery()) {
@@ -719,7 +736,7 @@ public class AccountService {
                 WHERE a.iban = ?
                 """;
 
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
             statement.setString(1, iban);
 
             try (ResultSet resultSet = statement.executeQuery()) {
@@ -752,7 +769,7 @@ public class AccountService {
                 WHERE a.id = ?
                 """;
 
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
             statement.setInt(1, accountId);
 
             try (ResultSet resultSet = statement.executeQuery()) {
@@ -800,12 +817,12 @@ public class AccountService {
     }
 
     private Client loadOwnerJdbc(int clientId) throws SQLException {
-        Optional<? extends Client> individualClient = individualClientRepository.findById(clientId);
+        Optional<? extends Client> individualClient = getIndividualClientRepository().findById(clientId);
         if (individualClient.isPresent()) {
             return individualClient.get();
         }
 
-        Optional<? extends Client> corporateClient = corporateClientRepository.findById(clientId);
+        Optional<? extends Client> corporateClient = getCorporateClientRepository().findById(clientId);
         if (corporateClient.isPresent()) {
             return corporateClient.get();
         }
@@ -854,7 +871,7 @@ public class AccountService {
         List<Transaction> transactions = new ArrayList<>();
         int accountId = account.getId();
 
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
             statement.setTimestamp(1, startTimestamp);
             statement.setTimestamp(2, endTimestamp);
             statement.setInt(3, accountId);
@@ -969,7 +986,7 @@ public class AccountService {
                 WHERE id = ?
                 """;
 
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
             statement.setInt(1, accountId);
 
             int affectedRows = statement.executeUpdate();
@@ -1025,7 +1042,7 @@ public class AccountService {
                 WHERE id = ?
                 """;
 
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
             statement.setDouble(1, amountChange);
             statement.setInt(2, accountId);
 
@@ -1048,7 +1065,7 @@ public class AccountService {
                 VALUES (?, ?, ?, ?)
                 """;
 
-        try (PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+        try (PreparedStatement statement = getConnection().prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             statement.setString(1, transactionType.name());
             statement.setDouble(2, amount);
             statement.setTimestamp(3, Timestamp.valueOf(LocalDateTime.now()));
@@ -1079,7 +1096,7 @@ public class AccountService {
                 VALUES (?, ?)
                 """;
 
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
             statement.setInt(1, transactionId);
             statement.setInt(2, destinationAccountId);
 
@@ -1100,7 +1117,7 @@ public class AccountService {
                 VALUES (?, ?)
                 """;
 
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
             statement.setInt(1, transactionId);
             statement.setInt(2, sourceAccountId);
 
@@ -1134,7 +1151,7 @@ public class AccountService {
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """;
 
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
             statement.setInt(1, transactionId);
             statement.setInt(2, sourceAccountId);
             statement.setInt(3, destinationAccountId);
@@ -1165,7 +1182,7 @@ public class AccountService {
                 VALUES (?, ?, ?)
                 """;
 
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
             statement.setInt(1, transactionId);
             statement.setInt(2, sourceAccountId);
             statement.setInt(3, destinationAccountId);

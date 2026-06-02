@@ -18,13 +18,14 @@ public class TransactionService {
     // etapa 1 - tranzactii tinute in memorie
     private final List<Transaction> transactions = new ArrayList<>();
 
-    // etapa 2 - conexiune JDBC pentru interogari in baza de date
-    private final Connection connection = DatabaseConnection.getInstance().getConnection();
-
     private TransactionService() {}
 
     public static TransactionService getInstance() {
         return INSTANCE;
+    }
+
+    private Connection getConnection() {
+        return DatabaseConnection.getInstance().getConnection();
     }
 
     public void recordTransaction(Transaction transaction) {
@@ -100,7 +101,7 @@ public class TransactionService {
                 ORDER BY t.`timestamp` DESC
                 """;
 
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
             statement.setString(1, TransactionType.TRANSFER.name());
 
             try (ResultSet resultSet = statement.executeQuery()) {
@@ -153,7 +154,7 @@ public class TransactionService {
                 ORDER BY t.`timestamp` DESC
                 """;
 
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
             statement.setString(1, TransactionType.TRANSFER.name());
             statement.setString(2, iban);
             statement.setString(3, iban);
@@ -205,7 +206,7 @@ public class TransactionService {
                 LIMIT ?
                 """;
 
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
             statement.setString(1, TransactionType.TRANSFER.name());
             statement.setInt(2, limit);
 

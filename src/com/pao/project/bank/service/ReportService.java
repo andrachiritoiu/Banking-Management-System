@@ -33,12 +33,15 @@ public class ReportService {
     private final TransactionService transactionService = TransactionService.getInstance();
     private final AccountService accountService = AccountService.getInstance();
     private final CreditService creditService = CreditService.getInstance();
-    private final Connection connection = DatabaseConnection.getInstance().getConnection();
 
     private ReportService() {}
 
     public static ReportService getInstance() {
         return INSTANCE;
+    }
+
+    private Connection getConnection() {
+        return DatabaseConnection.getInstance().getConnection();
     }
 
     public double calculateTotalInflows(Account account) {
@@ -269,7 +272,7 @@ public class ReportService {
         List<ClientAccountReport> result = new ArrayList<>();
 
         try (
-                PreparedStatement statement = connection.prepareStatement(sql);
+                PreparedStatement statement = getConnection().prepareStatement(sql);
                 ResultSet resultSet = statement.executeQuery()
         ) {
             while (resultSet.next()) {
@@ -319,7 +322,7 @@ public class ReportService {
 
         List<ClientTransferReport> result = new ArrayList<>();
 
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
             statement.setInt(1, clientId);
 
             try (ResultSet resultSet = statement.executeQuery()) {
@@ -367,7 +370,7 @@ public class ReportService {
 
         List<TopClientTransferReport> result = new ArrayList<>();
 
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
             statement.setInt(1, limit);
 
             try (ResultSet resultSet = statement.executeQuery()) {
@@ -415,7 +418,7 @@ public class ReportService {
 
         List<AccountTransferStatementReport> result = new ArrayList<>();
 
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
             statement.setString(1, iban);
             statement.setString(2, iban);
             statement.setString(3, iban);
@@ -460,7 +463,7 @@ public class ReportService {
         List<AccountWithoutTransferReport> result = new ArrayList<>();
 
         try (
-                PreparedStatement statement = connection.prepareStatement(sql);
+                PreparedStatement statement = getConnection().prepareStatement(sql);
                 ResultSet resultSet = statement.executeQuery()
         ) {
             while (resultSet.next()) {
@@ -496,7 +499,7 @@ public class ReportService {
         List<ClientBalanceSummaryReport> result = new ArrayList<>();
 
         try (
-                PreparedStatement statement = connection.prepareStatement(sql);
+                PreparedStatement statement = getConnection().prepareStatement(sql);
                 ResultSet resultSet = statement.executeQuery()
         ) {
             while (resultSet.next()) {
@@ -537,7 +540,7 @@ public class ReportService {
         List<ActiveCreditReport> result = new ArrayList<>();
 
         try (
-                PreparedStatement statement = connection.prepareStatement(sql);
+                PreparedStatement statement = getConnection().prepareStatement(sql);
                 ResultSet resultSet = statement.executeQuery()
         ) {
             while (resultSet.next()) {

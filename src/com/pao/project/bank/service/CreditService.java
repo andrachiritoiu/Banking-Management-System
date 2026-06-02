@@ -27,7 +27,6 @@ public class CreditService {
     private static final CreditService INSTANCE = new CreditService();
 
     private final AccountService accountService = AccountService.getInstance();
-    private final Connection connection = DatabaseConnection.getInstance().getConnection();
 
     private int creditIdCounter = 1;
     private final List<Credit> credits = new ArrayList<>();
@@ -37,6 +36,10 @@ public class CreditService {
 
     public static CreditService getInstance() {
         return INSTANCE;
+    }
+
+    private Connection getConnection() {
+        return DatabaseConnection.getInstance().getConnection();
     }
 
     public Credit createCredit(Client borrower, String targetIban, CreditType type, double principalAmount, double annualInterestRate, int durationInMonths) {
@@ -83,7 +86,7 @@ public class CreditService {
         validateCreditApplication(borrower, targetIban, type, principalAmount, annualInterestRate, durationInMonths);
 
         try {
-            connection.setAutoCommit(false);
+            getConnection().setAutoCommit(false);
 
             AccountCreditDbData targetAccount = getTargetAccountForCredit(targetIban);
 
@@ -113,13 +116,13 @@ public class CreditService {
                     durationInMonths
             );
 
-            connection.commit();
+            getConnection().commit();
             System.out.println("Apply for credit JDBC completed successfully.");
 
             return creditId;
         } catch (SQLException e) {
             try {
-                connection.rollback();
+                getConnection().rollback();
                 System.out.println("Apply for credit JDBC failed. Rollback executed.");
             } catch (SQLException rollbackException) {
                 throw new RuntimeException("Rollback failed.", rollbackException);
@@ -128,7 +131,7 @@ public class CreditService {
             throw new RuntimeException("Apply for credit JDBC failed: " + e.getMessage(), e);
         } finally {
             try {
-                connection.setAutoCommit(true);
+                getConnection().setAutoCommit(true);
             } catch (SQLException e) {
                 throw new RuntimeException("Could not reset autoCommit.", e);
             }
@@ -177,7 +180,7 @@ public class CreditService {
         }
 
         try {
-            connection.setAutoCommit(false);
+            getConnection().setAutoCommit(false);
 
             CreditInstallmentPaymentDbData paymentData = getInstallmentForPayment(creditId, installmentNumber);
 
@@ -206,11 +209,11 @@ public class CreditService {
             int transactionId = insertInstallmentTransaction(paymentData.installmentAmount);
             insertInstallmentWithdrawalDetails(transactionId, paymentData.accountId);
 
-            connection.commit();
+            getConnection().commit();
             System.out.println("Pay installment JDBC completed successfully.");
         } catch (SQLException e) {
             try {
-                connection.rollback();
+                getConnection().rollback();
                 System.out.println("Pay installment JDBC failed. Rollback executed.");
             } catch (SQLException rollbackException) {
                 throw new RuntimeException("Rollback failed.", rollbackException);
@@ -219,7 +222,7 @@ public class CreditService {
             throw new RuntimeException("Pay installment JDBC failed: " + e.getMessage(), e);
         } finally {
             try {
-                connection.setAutoCommit(true);
+                getConnection().setAutoCommit(true);
             } catch (SQLException e) {
                 throw new RuntimeException("Could not reset autoCommit.", e);
             }
@@ -275,7 +278,7 @@ public class CreditService {
                 WHERE iban = ?
                 """;
 
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
             statement.setString(1, iban);
 
             try (ResultSet resultSet = statement.executeQuery()) {
@@ -310,7 +313,7 @@ public class CreditService {
                 FOR UPDATE
                 """;
 
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
             statement.setInt(1, creditId);
             statement.setInt(2, installmentNumber);
 
@@ -340,7 +343,7 @@ public class CreditService {
                 WHERE id = ?
                 """;
 
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
             statement.setDouble(1, installmentAmount);
             statement.setInt(2, accountId);
 
@@ -359,7 +362,7 @@ public class CreditService {
                 WHERE id = ?
                 """;
 
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
             statement.setInt(1, installmentId);
 
             int affectedRows = statement.executeUpdate();
@@ -378,7 +381,7 @@ public class CreditService {
                 WHERE id = ?
                 """;
 
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
             statement.setDouble(1, remainingAmount);
             statement.setString(2, remainingAmount == 0 ? CreditStatus.PAID.name() : CreditStatus.ACTIVE.name());
             statement.setInt(3, creditId);
@@ -402,7 +405,7 @@ public class CreditService {
                 VALUES (?, ?, ?, ?)
                 """;
 
-        try (PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+        try (PreparedStatement statement = getConnection().prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             statement.setString(1, TransactionType.WITHDRAWAL.name());
             statement.setDouble(2, amount);
             statement.setTimestamp(3, Timestamp.valueOf(LocalDateTime.now()));
@@ -433,7 +436,7 @@ public class CreditService {
                 VALUES (?, ?)
                 """;
 
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
             statement.setInt(1, transactionId);
             statement.setInt(2, accountId);
 
@@ -471,7 +474,7 @@ public class CreditService {
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
 
-        try (PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+        try (PreparedStatement statement = getConnection().prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             statement.setInt(1, borrowerId);
             statement.setInt(2, targetAccountId);
             statement.setString(3, type.name());
@@ -517,7 +520,7 @@ public class CreditService {
         double monthlyInstallment = totalAmountToPay / durationInMonths;
         double insertedAmount = 0;
 
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
             for (int installmentNumber = 1; installmentNumber <= durationInMonths; installmentNumber++) {
                 double amount = installmentNumber == durationInMonths
                         ? totalAmountToPay - insertedAmount
