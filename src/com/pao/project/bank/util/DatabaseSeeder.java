@@ -13,9 +13,18 @@ public final class DatabaseSeeder {
     }
 
     public static void seedDemoData() {
+        seedDemoData(false);
+    }
+
+    public static void seedDemoData(boolean force) {
         Connection connection = DatabaseConnection.getInstance().getConnection();
 
         try {
+            if (!force && databaseAlreadySeeded(connection)) {
+                System.out.println("Database already contains data. Startup seed skipped.");
+                return;
+            }
+
             connection.setAutoCommit(false);
 
             seedPersons(connection);
@@ -25,6 +34,7 @@ public final class DatabaseSeeder {
             seedCards(connection);
             seedTransactions(connection);
             seedCheques(connection);
+            seedCredits(connection);
             seedAliases(connection);
 
             connection.commit();
@@ -122,6 +132,42 @@ public final class DatabaseSeeder {
         );
     }
 
+    private static void seedCredits(Connection connection) throws SQLException {
+        upsertCredit(
+                connection,
+                1,
+                1,
+                1,
+                "PERSONAL",
+                5000.0,
+                7.5,
+                12,
+                LocalDate.of(2026, 6, 2),
+                5375.0,
+                "ACTIVE"
+        );
+        upsertCredit(
+                connection,
+                2,
+                3,
+                3,
+                "BUSINESS",
+                20000.0,
+                9.0,
+                24,
+                null,
+                23600.0,
+                "PENDING"
+        );
+
+        if (tableExists(connection, "credit_installments")) {
+            seedInstallments(connection, 1, LocalDate.of(2026, 6, 2), 5375.0, 12, 1);
+            seedInstallments(connection, 2, LocalDate.of(2026, 6, 2), 23600.0, 24, 0);
+        } else {
+            System.out.println("Warning: table credit_installments does not exist. Credit installments were not seeded.");
+        }
+    }
+
     private static void seedAliases(Connection connection) throws SQLException {
         upsertAlias(connection, "ion-main", 1);
         upsertAlias(connection, "maria-savings", 2);
@@ -154,10 +200,7 @@ public final class DatabaseSeeder {
         String sql = """
                 INSERT INTO clients (id, client_code, client_type, active)
                 VALUES (?, ?, ?, ?)
-                ON DUPLICATE KEY UPDATE
-                    client_code = VALUES(client_code),
-                    client_type = VALUES(client_type),
-                    active = VALUES(active)
+                ON DUPLICATE KEY UPDATE id = id
                 """;
 
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
@@ -526,6 +569,125 @@ public final class DatabaseSeeder {
         }
     }
 
+    private static void upsertCredit(
+            Connection connection,
+            int id,
+            int borrowerId,
+            int targetAccountId,
+            String creditType,
+            double principalAmount,
+            double annualInterestRate,
+            int durationInMonths,
+            LocalDate startDate,
+            double remainingAmount,
+            String status
+    ) throws SQLException {
+        String sql = """
+                INSERT INTO credits (
+                    id,
+                    borrower_id,
+                    target_account_id,
+                    credit_type,
+                    principal_amount,
+                    annual_interest_rate,
+                    duration_in_months,
+                    start_date,
+                    remaining_amount,
+                    status
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    borrower_id = VALUES(borrower_id),
+                    target_account_id = VALUES(target_account_id),
+                    credit_type = VALUES(credit_type),
+                    principal_amount = VALUES(principal_amount),
+                    annual_interest_rate = VALUES(annual_interest_rate),
+                    duration_in_months = VALUES(duration_in_months),
+                    start_date = VALUES(start_date),
+                    remaining_amount = VALUES(remaining_amount),
+                    status = VALUES(status)
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, id);
+            statement.setInt(2, borrowerId);
+            statement.setInt(3, targetAccountId);
+            statement.setString(4, creditType);
+            statement.setDouble(5, principalAmount);
+            statement.setDouble(6, annualInterestRate);
+            statement.setInt(7, durationInMonths);
+            if (startDate == null) {
+                statement.setNull(8, java.sql.Types.DATE);
+            } else {
+                statement.setDate(8, Date.valueOf(startDate));
+            }
+            statement.setDouble(9, remainingAmount);
+            statement.setString(10, status);
+            statement.executeUpdate();
+        }
+    }
+
+    private static void seedInstallments(
+            Connection connection,
+            int creditId,
+            LocalDate startDate,
+            double totalAmount,
+            int durationInMonths,
+            int paidInstallments
+    ) throws SQLException {
+        double monthlyAmount = Math.round((totalAmount / durationInMonths) * 100.0) / 100.0;
+        double assignedAmount = 0.0;
+
+        for (int installmentNumber = 1; installmentNumber <= durationInMonths; installmentNumber++) {
+            double amount = installmentNumber == durationInMonths
+                    ? Math.round((totalAmount - assignedAmount) * 100.0) / 100.0
+                    : monthlyAmount;
+            assignedAmount += amount;
+
+            upsertCreditInstallment(
+                    connection,
+                    creditId,
+                    installmentNumber,
+                    startDate.plusMonths(installmentNumber),
+                    amount,
+                    installmentNumber <= paidInstallments
+            );
+        }
+    }
+
+    private static void upsertCreditInstallment(
+            Connection connection,
+            int creditId,
+            int installmentNumber,
+            LocalDate dueDate,
+            double amount,
+            boolean paid
+    ) throws SQLException {
+        String sql = """
+                INSERT INTO credit_installments (
+                    credit_id,
+                    installment_number,
+                    due_date,
+                    amount,
+                    paid
+                )
+                VALUES (?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    due_date = VALUES(due_date),
+                    amount = VALUES(amount),
+                    paid = VALUES(paid)
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, creditId);
+            statement.setInt(2, installmentNumber);
+            statement.setDate(3, Date.valueOf(dueDate));
+            statement.setDouble(4, amount);
+            statement.setBoolean(5, paid);
+            statement.executeUpdate();
+        }
+    }
+
     private static void rollback(Connection connection) {
         try {
             connection.rollback();
@@ -539,6 +701,32 @@ public final class DatabaseSeeder {
             connection.setAutoCommit(true);
         } catch (SQLException e) {
             throw new RuntimeException("Could not reset database autoCommit after seeding.", e);
+        }
+    }
+
+    private static boolean tableExists(Connection connection, String tableName) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("""
+                SELECT COUNT(*)
+                FROM information_schema.tables
+                WHERE table_schema = DATABASE()
+                  AND table_name = ?
+                """)) {
+            statement.setString(1, tableName);
+
+            try (var resultSet = statement.executeQuery()) {
+                return resultSet.next() && resultSet.getInt(1) > 0;
+            }
+        }
+    }
+
+    private static boolean databaseAlreadySeeded(Connection connection) throws SQLException {
+        if (!tableExists(connection, "persons")) {
+            return false;
+        }
+
+        try (PreparedStatement statement = connection.prepareStatement("SELECT COUNT(*) FROM persons");
+             var resultSet = statement.executeQuery()) {
+            return resultSet.next() && resultSet.getInt(1) > 0;
         }
     }
 }

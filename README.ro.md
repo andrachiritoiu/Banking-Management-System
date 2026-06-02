@@ -209,11 +209,13 @@ Banking-Management-System/
         |   |-- ChequeService.java
         |   |-- ClientService.java
         |   |-- CreditService.java
+        |   |-- DatabaseViewService.java
         |   |-- EmployeeService.java
         |   |-- ReportService.java
         |   `-- TransactionService.java
         `-- util/
-            `-- DatabaseConnection.java
+            |-- DatabaseConnection.java
+            `-- DatabaseSeeder.java
 ```
 Proiectul urmează o **arhitectură pe layere**:
 
@@ -350,6 +352,26 @@ Etapa a II-a extinde proiectul din Etapa I cu persistență JDBC, tranzacții ex
 - `docker-compose.yml` pornește o instanță MySQL și montează `resources/schema.sql` pentru inițializarea bazei de date.
 - `libs/mysql-connector-j-9.7.0.jar` este driverul JDBC folosit la compilare și rulare.
 
+
+### Moduri de rulare
+
+Aplicația decide automat sursa de date la pornire:
+
+```text
+MySQL pornit  -> rulează DatabaseSeeder, lucrează cu baza de date și nu mai încarcă listele in-memory
+MySQL oprit   -> pornește fallback-ul in-memory cu datele demo din Etapa I
+```
+
+Comenzi utile:
+
+```powershell
+docker compose up -d
+javac -cp "libs\mysql-connector-j-9.7.0.jar" -d out\production\Bank-Project (Get-ChildItem -Recurse -File -Filter *.java -Path src | ForEach-Object { $_.FullName })
+java -cp "out\production\Bank-Project;libs\mysql-connector-j-9.7.0.jar;resources" com.pao.project.bank.Main
+java -cp "out\production\Bank-Project;libs\mysql-connector-j-9.7.0.jar;resources" com.pao.project.bank.Main --seed-db
+```
+
+În meniul principal, opțiunea `10. Show startup mode` afișează modul curent. În modul DB, meniurile citesc și modifică datele din MySQL; în fallback, folosesc serviciile in-memory.
 ### Schema relațională
 
 Schema include tabele pentru toate zonele importante ale aplicației bancare:
@@ -359,7 +381,7 @@ Schema include tabele pentru toate zonele importante ale aplicației bancare:
 - conturi: `accounts`, `current_accounts`, `savings_accounts`, `iban_aliases`
 - tranzacții: `transactions`, `deposit_transactions`, `withdrawal_transactions`, `transfer_transactions`, `exchange_transactions`
 - instrumente și rapoarte: `cards`, `cheques`, `account_statements`, `account_statement_transactions`
-- credite: `credits`, `credit_installments`
+- credite: `credits`, `credit_installments` (seeder-ul include credite demo și rate lunare)
 - audit DB opțional: `audit_logs`
 
 Tabelele folosesc chei primare, constrângeri `CHECK`, relații `FOREIGN KEY` și ștergeri controlate prin `ON DELETE CASCADE` acolo unde relația de compoziție o cere.

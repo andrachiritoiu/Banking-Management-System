@@ -172,11 +172,13 @@ Banking-Management-System/
         |   |-- ChequeService.java
         |   |-- ClientService.java
         |   |-- CreditService.java
+        |   |-- DatabaseViewService.java
         |   |-- EmployeeService.java
         |   |-- ReportService.java
         |   `-- TransactionService.java
         `-- util/
-            `-- DatabaseConnection.java
+            |-- DatabaseConnection.java
+            `-- DatabaseSeeder.java
 ```
 
 The project follows a layered architecture:
@@ -396,6 +398,26 @@ Stage II extends the Stage I OOP project with JDBC persistence, explicit SQL tra
 - `docker-compose.yml` starts a MySQL instance and mounts `resources/schema.sql` for database initialization.
 - `libs/mysql-connector-j-9.7.0.jar` is the JDBC driver used for compilation and runtime.
 
+
+### Runtime Modes
+
+At startup, the application automatically chooses the data source:
+
+```text
+MySQL available   -> runs DatabaseSeeder, uses the database, and does not load in-memory demo lists
+MySQL unavailable -> falls back to the Stage I in-memory demo data
+```
+
+Useful commands:
+
+```powershell
+docker compose up -d
+javac -cp "libs\mysql-connector-j-9.7.0.jar" -d out\production\Bank-Project (Get-ChildItem -Recurse -File -Filter *.java -Path src | ForEach-Object { $_.FullName })
+java -cp "out\production\Bank-Project;libs\mysql-connector-j-9.7.0.jar;resources" com.pao.project.bank.Main
+java -cp "out\production\Bank-Project;libs\mysql-connector-j-9.7.0.jar;resources" com.pao.project.bank.Main --seed-db
+```
+
+Main menu option `10. Show startup mode` shows the active mode. In database mode, menus read and modify MySQL data; in fallback mode, they use the in-memory services.
 ### Relational Schema
 
 The schema covers the main banking areas:
@@ -405,7 +427,7 @@ The schema covers the main banking areas:
 - accounts: `accounts`, `current_accounts`, `savings_accounts`, `iban_aliases`
 - transactions: `transactions`, `deposit_transactions`, `withdrawal_transactions`, `transfer_transactions`, `exchange_transactions`
 - banking instruments and reports: `cards`, `cheques`, `account_statements`, `account_statement_transactions`
-- credits: `credits`, `credit_installments`
+- credits: `credits`, `credit_installments` (the seeder includes demo credits and monthly installments)
 - optional database audit table: `audit_logs`
 
 The tables use primary keys, `CHECK` constraints, foreign keys, and controlled cascading deletes where the relationship requires it.

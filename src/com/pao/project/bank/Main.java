@@ -17,10 +17,12 @@ import com.pao.project.bank.model.person.CorporateClient;
 import com.pao.project.bank.model.person.FinancialAdvisor;
 import com.pao.project.bank.model.person.IndividualClient;
 import com.pao.project.bank.service.AccountService;
+import com.pao.project.bank.service.AuditService;
 import com.pao.project.bank.service.CardService;
 import com.pao.project.bank.service.ChequeService;
 import com.pao.project.bank.service.ClientService;
 import com.pao.project.bank.service.CreditService;
+import com.pao.project.bank.service.DatabaseViewService;
 import com.pao.project.bank.service.EmployeeService;
 import com.pao.project.bank.service.ReportService;
 import com.pao.project.bank.service.TransactionService;
@@ -49,13 +51,16 @@ public class Main {
     private static ChequeService chequeService;
     private static ReportService reportService;
     private static CreditService creditService;
+    private static DatabaseViewService databaseViewService;
+    private static final AuditService auditService = AuditService.getInstance();
     private static boolean databaseMode;
 
     public static void main(String[] args) {
         printHeader("BANKING MANAGEMENT SYSTEM");
 
         if (args.length > 0 && "--seed-db".equalsIgnoreCase(args[0])) {
-            DatabaseSeeder.seedDemoData();
+            DatabaseSeeder.seedDemoData(true);
+            auditService.logAction("seed_database_cli");
             System.out.println("Database demo data seeded successfully.");
             return;
         }
@@ -77,8 +82,11 @@ public class Main {
     private static boolean trySeedDatabaseDemoData() {
         try {
             DatabaseSeeder.seedDemoData();
+            auditService.logAction("seed_database_startup");
             return true;
         } catch (RuntimeException e) {
+            System.out.println("MySQL connection was found, but database startup seed failed: " + e.getMessage());
+            System.out.println("If the schema is outdated, recreate the Docker volume or rerun resources/schema.sql.");
             return false;
         }
     }
@@ -92,6 +100,7 @@ public class Main {
         chequeService = ChequeService.getInstance();
         reportService = ReportService.getInstance();
         creditService = CreditService.getInstance();
+        databaseViewService = DatabaseViewService.getInstance();
     }
 
     private static void seedDemoData() {
@@ -143,6 +152,7 @@ public class Main {
         boolean running = true;
 
         while (running) {
+            System.out.println("\nCurrent mode: " + (databaseMode ? "DATABASE / MySQL" : "IN-MEMORY FALLBACK"));
             System.out.println("""
                     
                     ---- MAIN MENU ----
@@ -172,8 +182,9 @@ public class Main {
                     case 7 -> creditMenu();
                     case 8 -> showAllData();
                     case 9 -> {
-                        DatabaseSeeder.seedDemoData();
+                        DatabaseSeeder.seedDemoData(true);
                         databaseMode = true;
+                        auditService.logAction("seed_database_menu");
                         System.out.println("Database demo data seeded successfully.");
                     }
                     case 10 -> System.out.println(databaseMode
@@ -944,7 +955,7 @@ public class Main {
             case 1 -> showDatabaseClients();
             case 2 -> addIndividualClientJdbc();
             case 3 -> addCorporateClientJdbc();
-            case 4 -> updateJdbc("UPDATE clients SET active = FALSE WHERE client_code = ?", readLine("Client code: "));
+            case 4 -> removeClientJdbc(readExistingClientCode("Client code: "));
             case 5 -> showClientByColumnJdbc("c.client_code", readLine("Client code: "));
             case 6 -> showClientByColumnJdbc("ic.cnp", readLine("CNP: "));
             case 7 -> showClientByColumnJdbc("cc.cui", readLine("CUI: "));
@@ -963,7 +974,7 @@ public class Main {
             case 1 -> showDatabaseEmployees();
             case 2 -> addBankTellerJdbc();
             case 3 -> addFinancialAdvisorJdbc();
-            case 4 -> deleteEmployeeJdbc(readLine("Employee code: "));
+            case 4 -> deleteEmployeeJdbc(readExistingEmployeeCode("Employee code: "));
             case 5 -> showEmployeeByColumnJdbc("e.employee_code", readLine("Employee code: "));
             case 6 -> showEmployeeByColumnJdbc("p.email", readLine("Email: "));
             case 7 -> showBankTellersByDeskJdbc(readInt("Desk number: "));
@@ -989,29 +1000,33 @@ public class Main {
                 System.out.println("Account close operation executed.");
             }
             case 7 -> {
-                accountService.depositJdbc(readLine("IBAN: "), readDouble("Amount: "));
+                accountService.depositJdbc(readExistingAccountIban("IBAN: "), readPositiveDouble("Amount: "));
                 System.out.println("Deposit completed.");
             }
             case 8 -> {
-                accountService.withdrawJdbc(readLine("IBAN: "), readDouble("Amount: "));
+                accountService.withdrawJdbc(readExistingAccountIban("IBAN: "), readPositiveDouble("Amount: "));
                 System.out.println("Withdrawal completed.");
             }
             case 9 -> {
-                accountService.transferJdbc(readLine("Source IBAN: "), readLine("Destination IBAN: "), readDouble("Amount: "));
+                accountService.transferJdbc(
+                        readExistingAccountIban("Source IBAN: "),
+                        readExistingAccountIban("Destination IBAN: "),
+                        readPositiveDouble("Amount: ")
+                );
                 System.out.println("Transfer completed.");
             }
             case 10 -> {
                 accountService.exchangeJdbc(
-                        readLine("Source IBAN: "),
-                        readLine("Destination IBAN: "),
-                        readDouble("Source amount: "),
-                        readDouble("Exchange rate: ")
+                        readExistingAccountIban("Source IBAN: "),
+                        readExistingAccountIban("Destination IBAN: "),
+                        readPositiveDouble("Source amount: "),
+                        readPositiveDouble("Exchange rate: ")
                 );
                 System.out.println("Exchange completed.");
             }
             case 11 -> setAliasJdbc(readLine("Alias: "), readLine("IBAN: "));
             case 12 -> showAliasJdbc(readLine("Alias: "));
-            case 13 -> transferByAliasJdbc(readLine("Source IBAN: "), readLine("Destination alias: "), readDouble("Amount: "));
+            case 13 -> transferByAliasJdbc(readExistingAccountIban("Source IBAN: "), readLine("Destination alias: "), readPositiveDouble("Amount: "));
             case 14 -> showAliasesJdbc();
             case 15 -> showTransactionsForAccountJdbc(readLine("IBAN: "), null);
             case 16 -> {
@@ -1020,7 +1035,7 @@ public class Main {
                 System.out.println("2. Withdrawal");
                 System.out.println("3. Transfer");
                 System.out.println("4. Exchange");
-                TransactionType type = readTransactionType(readInt("Choose type: "));
+                TransactionType type = readTransactionTypeOption();
                 showTransactionsForAccountJdbc(iban, type);
             }
             case 17 -> showTransactionsForAccountJdbc(readLine("IBAN: "), null);
@@ -1038,7 +1053,7 @@ public class Main {
             case 1 -> issueCardJdbc(readLine("IBAN: "), LocalDate.now().plusYears(3), true);
             case 2 -> issueCardJdbc(
                     readLine("IBAN: "),
-                    LocalDate.now().plusYears(readInt("Years until expiration: ")),
+                    LocalDate.now().plusYears(readPositiveInt("Years until expiration: ")),
                     readLine("Contactless (true/false): ").equalsIgnoreCase("true")
             );
             case 3 -> showCardByNumberJdbc(readLine("Card number: "));
@@ -1100,17 +1115,17 @@ public class Main {
             case 1 -> applyForCreditFromMenuJdbc();
             case 2 -> approveCreditJdbc(readInt("Credit ID: "));
             case 3 -> updateJdbc("UPDATE credits SET status = 'REJECTED' WHERE id = ?", readInt("Credit ID: "));
-            case 4 -> creditService.payInstallmentJdbc(readInt("Credit ID: "), readInt("Installment number: "));
+            case 4 -> creditService.payInstallmentJdbc(readPositiveInt("Credit ID: "), readPositiveInt("Installment number: "));
             case 5 -> showCreditByIdJdbc(readInt("Credit ID: "));
             case 6 -> showDatabaseCredits();
             case 7 -> showCreditsForClientJdbc(readLine("Client code: "));
-            case 8 -> showCreditsByStatusJdbc(readCreditStatus(readInt("""
+            case 8 -> showCreditsByStatusJdbc(readCreditStatusOption("""
                     1. Pending
                     2. Active
                     3. Paid
                     4. Rejected
                     5. Defaulted
-                    Status: """)).name());
+                    Status: """).name());
             case 0 -> {
                 return true;
             }
@@ -1150,41 +1165,211 @@ public class Main {
         };
     }
 
+    private static TransactionType readTransactionTypeOption() {
+        while (true) {
+            try {
+                return readTransactionType(readInt("Choose type: "));
+            } catch (IllegalArgumentException e) {
+                System.out.println(e.getMessage());
+            }
+        }
+    }
+
+    private static CreditType readCreditTypeOption(String message) {
+        while (true) {
+            try {
+                return readCreditType(readInt(message));
+            } catch (IllegalArgumentException e) {
+                System.out.println(e.getMessage());
+                message = "Credit type: ";
+            }
+        }
+    }
+
+    private static CreditStatus readCreditStatusOption(String message) {
+        while (true) {
+            try {
+                return readCreditStatus(readInt(message));
+            } catch (IllegalArgumentException e) {
+                System.out.println(e.getMessage());
+                message = "Status: ";
+            }
+        }
+    }
+
+    private static String readValidCnp(String message) {
+        while (true) {
+            String cnp = readLine(message);
+            try {
+                parseBirthDateFromCnp(cnp);
+                return cnp;
+            } catch (IllegalArgumentException e) {
+                System.out.println(e.getMessage());
+                message = "CNP: ";
+            }
+        }
+    }
+
+    private static int readPositiveInt(String message) {
+        while (true) {
+            int value = readInt(message);
+            if (value > 0) {
+                return value;
+            }
+
+            System.out.println("Value must be positive.");
+            message = "Enter a positive integer: ";
+        }
+    }
+
+    private static double readPositiveDouble(String message) {
+        while (true) {
+            double value = readDouble(message);
+            if (value > 0) {
+                return value;
+            }
+
+            System.out.println("Value must be positive.");
+            message = "Enter a positive number: ";
+        }
+    }
+
+    private static double readNonNegativeDouble(String message) {
+        while (true) {
+            double value = readDouble(message);
+            if (value >= 0) {
+                return value;
+            }
+
+            System.out.println("Value cannot be negative.");
+            message = "Enter a non-negative number: ";
+        }
+    }
+
+    private static String readCurrencyCode(String message) {
+        while (true) {
+            String currency = readLine(message).trim().toUpperCase();
+            if (currency.equals("RON") || currency.equals("EUR") || currency.equals("USD") || currency.equals("GBP")) {
+                return currency;
+            }
+
+            System.out.println("Currency invalid. Accepted values: RON, EUR, USD, GBP.");
+            message = "Currency (RON/EUR/USD/GBP): ";
+        }
+    }
+
+    private static int readExistingClientIdByCode(String message) throws SQLException {
+        while (true) {
+            String clientCode = readLine(message);
+            try {
+                return findClientIdByCodeJdbc(clientCode);
+            } catch (SQLException e) {
+                System.out.println("Client code not found.");
+                message = "Client code: ";
+            }
+        }
+    }
+
+    private static String readExistingClientCode(String message) throws SQLException {
+        while (true) {
+            String clientCode = readLine(message);
+            try {
+                findClientIdByCodeJdbc(clientCode);
+                return clientCode;
+            } catch (SQLException e) {
+                System.out.println("Client code not found.");
+                message = "Client code: ";
+            }
+        }
+    }
+
+    private static String readExistingEmployeeCode(String message) throws SQLException {
+        while (true) {
+            String employeeCode = readLine(message);
+            try {
+                findIntJdbc("SELECT id FROM employees WHERE employee_code = ?", employeeCode);
+                return employeeCode;
+            } catch (SQLException e) {
+                System.out.println("Employee code not found.");
+                message = "Employee code: ";
+            }
+        }
+    }
+
+    private static int readExistingAccountIdByIban(String message) throws SQLException {
+        return readExistingAccountIdByIban(message, null);
+    }
+
+    private static int readExistingAccountIdByIban(String message, String firstValue) throws SQLException {
+        String iban = firstValue;
+        while (true) {
+            if (iban == null || iban.isBlank()) {
+                iban = readLine(message);
+            }
+
+            try {
+                return findAccountIdByIbanJdbc(iban);
+            } catch (SQLException e) {
+                System.out.println("IBAN not found.");
+                iban = null;
+                message = "IBAN: ";
+            }
+        }
+    }
+
+    private static String readExistingAccountIban(String message) throws SQLException {
+        while (true) {
+            String iban = readLine(message);
+            try {
+                findAccountIdByIbanJdbc(iban);
+                return iban;
+            } catch (SQLException e) {
+                System.out.println("IBAN not found.");
+                message = "IBAN: ";
+            }
+        }
+    }
+
     private static String readChequeStatusOption() {
-        System.out.println("1. ISSUED");
-        System.out.println("2. CASHED");
-        System.out.println("3. CANCELLED");
-        System.out.println("4. EXPIRED");
-        return switch (readInt("Choose status: ")) {
-            case 1 -> "ISSUED";
-            case 2 -> "CASHED";
-            case 3 -> "CANCELLED";
-            case 4 -> "EXPIRED";
-            default -> throw new IllegalArgumentException("Invalid cheque status.");
-        };
+        while (true) {
+            System.out.println("1. ISSUED");
+            System.out.println("2. CASHED");
+            System.out.println("3. CANCELLED");
+            System.out.println("4. EXPIRED");
+
+            switch (readInt("Choose status: ")) {
+                case 1 -> {
+                    return "ISSUED";
+                }
+                case 2 -> {
+                    return "CASHED";
+                }
+                case 3 -> {
+                    return "CANCELLED";
+                }
+                case 4 -> {
+                    return "EXPIRED";
+                }
+                default -> System.out.println("Invalid cheque status.");
+            }
+        }
     }
 
     private static void addIndividualClientJdbc() throws SQLException {
-        int id = readInt("ID: ");
         String email = readLine("Email: ");
         String phone = readLine("Phone: ");
         String clientCode = readLine("Client code: ");
         String firstName = readLine("First name: ");
         String lastName = readLine("Last name: ");
-        String cnp = readLine("CNP: ");
-        LocalDate birthDate = readBirthDateFromCnp(cnp);
+        String cnp = readValidCnp("CNP: ");
+        LocalDate birthDate = parseBirthDateFromCnp(cnp);
 
         executeInTransaction(connection -> {
-            insertPersonJdbc(connection, id, "CLIENT", email, phone);
+            int id = insertPersonJdbc(connection, "CLIENT", email, phone);
             insertClientJdbc(connection, id, clientCode, "INDIVIDUAL", true);
             updateJdbc(connection, """
                     INSERT INTO individual_clients (client_id, first_name, last_name, cnp, birth_date)
                     VALUES (?, ?, ?, ?, ?)
-                    ON DUPLICATE KEY UPDATE
-                        first_name = VALUES(first_name),
-                        last_name = VALUES(last_name),
-                        cnp = VALUES(cnp),
-                        birth_date = VALUES(birth_date)
                     """, id, firstName, lastName, cnp, java.sql.Date.valueOf(birthDate));
         });
 
@@ -1193,24 +1378,19 @@ public class Main {
 
     private static void addCorporateClientJdbc() throws SQLException {
         System.out.println("Legal representative must already exist as an individual client.");
-        int id = readInt("Company ID: ");
         String email = readLine("Company email: ");
         String phone = readLine("Company phone: ");
         String clientCode = readLine("Company client code: ");
         String companyName = readLine("Company name: ");
         String cui = readLine("CUI: ");
-        int representativeId = findClientIdByCodeJdbc(readLine("Representative client code: "));
+        int representativeId = readExistingClientIdByCode("Representative client code: ");
 
         executeInTransaction(connection -> {
-            insertPersonJdbc(connection, id, "CLIENT", email, phone);
+            int id = insertPersonJdbc(connection, "CLIENT", email, phone);
             insertClientJdbc(connection, id, clientCode, "CORPORATE", true);
             updateJdbc(connection, """
                     INSERT INTO corporate_clients (client_id, company_name, cui, legal_representative_id)
                     VALUES (?, ?, ?, ?)
-                    ON DUPLICATE KEY UPDATE
-                        company_name = VALUES(company_name),
-                        cui = VALUES(cui),
-                        legal_representative_id = VALUES(legal_representative_id)
                     """, id, companyName, cui, representativeId);
         });
 
@@ -1218,23 +1398,21 @@ public class Main {
     }
 
     private static void addBankTellerJdbc() throws SQLException {
-        int id = readInt("ID: ");
         String email = readLine("Email: ");
         String phone = readLine("Phone: ");
         String lastName = readLine("Last name: ");
         String firstName = readLine("First name: ");
         String employeeCode = readLine("Employee code: ");
-        double salary = readDouble("Salary: ");
+        double salary = readPositiveDouble("Salary: ");
         String branch = readLine("Branch: ");
-        int deskNumber = readInt("Desk number: ");
+        int deskNumber = readPositiveInt("Desk number: ");
 
         executeInTransaction(connection -> {
-            insertPersonJdbc(connection, id, "EMPLOYEE", email, phone);
+            int id = insertPersonJdbc(connection, "EMPLOYEE", email, phone);
             insertEmployeeJdbc(connection, id, employeeCode, "BANK_TELLER", firstName, lastName, salary, branch);
             updateJdbc(connection, """
                     INSERT INTO bank_tellers (employee_id, desk_number)
                     VALUES (?, ?)
-                    ON DUPLICATE KEY UPDATE desk_number = VALUES(desk_number)
                     """, id, deskNumber);
         });
 
@@ -1242,23 +1420,21 @@ public class Main {
     }
 
     private static void addFinancialAdvisorJdbc() throws SQLException {
-        int id = readInt("ID: ");
         String email = readLine("Email: ");
         String phone = readLine("Phone: ");
         String lastName = readLine("Last name: ");
         String firstName = readLine("First name: ");
         String employeeCode = readLine("Employee code: ");
-        double salary = readDouble("Salary: ");
+        double salary = readPositiveDouble("Salary: ");
         String branch = readLine("Branch: ");
         String specialization = readLine("Specialization: ");
 
         executeInTransaction(connection -> {
-            insertPersonJdbc(connection, id, "EMPLOYEE", email, phone);
+            int id = insertPersonJdbc(connection, "EMPLOYEE", email, phone);
             insertEmployeeJdbc(connection, id, employeeCode, "FINANCIAL_ADVISOR", firstName, lastName, salary, branch);
             updateJdbc(connection, """
                     INSERT INTO financial_advisors (employee_id, specialization)
                     VALUES (?, ?)
-                    ON DUPLICATE KEY UPDATE specialization = VALUES(specialization)
                     """, id, specialization);
         });
 
@@ -1266,39 +1442,29 @@ public class Main {
     }
 
     private static void openAccountFromMenuJdbc(String accountType) throws SQLException {
-        int ownerId = findClientIdByCodeJdbc(readLine("Client code: "));
-        int accountId = readInt("ID: ");
+        int ownerId = readExistingClientIdByCode("Client code: ");
+        int accountId = nextIntJdbc("SELECT COALESCE(MAX(id), 0) + 1 FROM accounts");
         String iban = IBAN.generate().getCode();
-        double balance = readDouble("Initial balance: ");
-        String currency = readLine("Currency: ");
+        double balance = readNonNegativeDouble("Initial balance: ");
+        String currency = readCurrencyCode("Currency (RON/EUR/USD/GBP): ");
         LocalDate openingDate = LocalDate.now();
 
         executeInTransaction(connection -> {
             updateJdbc(connection, """
                     INSERT INTO accounts (id, iban, account_type, balance, currency, active, opening_date, client_id)
                     VALUES (?, ?, ?, ?, ?, TRUE, ?, ?)
-                    ON DUPLICATE KEY UPDATE
-                        iban = VALUES(iban),
-                        account_type = VALUES(account_type),
-                        balance = VALUES(balance),
-                        currency = VALUES(currency),
-                        active = VALUES(active),
-                        opening_date = VALUES(opening_date),
-                        client_id = VALUES(client_id)
                     """, accountId, iban, accountType, balance, currency, java.sql.Date.valueOf(openingDate), ownerId);
 
             if ("CURRENT".equals(accountType)) {
                 updateJdbc(connection, """
                         INSERT INTO current_accounts (account_id, monthly_fee)
                         VALUES (?, ?)
-                        ON DUPLICATE KEY UPDATE monthly_fee = VALUES(monthly_fee)
-                        """, accountId, readDouble("Monthly fee: "));
+                        """, accountId, readNonNegativeDouble("Monthly fee: "));
             } else {
                 updateJdbc(connection, """
                         INSERT INTO savings_accounts (account_id, interest_rate, withdrawals_this_month)
                         VALUES (?, ?, 0)
-                        ON DUPLICATE KEY UPDATE interest_rate = VALUES(interest_rate)
-                        """, accountId, readDouble("Interest rate: "));
+                        """, accountId, readNonNegativeDouble("Interest rate: "));
             }
         });
 
@@ -1307,7 +1473,7 @@ public class Main {
     }
 
     private static void setAliasJdbc(String alias, String iban) throws SQLException {
-        int accountId = findAccountIdByIbanJdbc(iban);
+        int accountId = readExistingAccountIdByIban("IBAN: ", iban);
         updateJdbc("""
                 INSERT INTO iban_aliases (alias, account_id)
                 VALUES (?, ?)
@@ -1328,7 +1494,7 @@ public class Main {
     }
 
     private static void issueCardJdbc(String iban, LocalDate expirationDate, boolean contactless) throws SQLException {
-        int accountId = findAccountIdByIbanJdbc(iban);
+        int accountId = readExistingAccountIdByIban("IBAN: ", iban);
         String cardNumber = generateDigits(16);
         String cvv = generateDigits(3);
 
@@ -1353,11 +1519,11 @@ public class Main {
     }
 
     private static void issueChequeJdbc() throws SQLException {
-        int issuerAccountId = findAccountIdByIbanJdbc(readLine("Issuer IBAN: "));
-        int beneficiaryClientId = findClientIdByCodeJdbc(readLine("Beneficiary client code: "));
-        double amount = readDouble("Amount: ");
+        int issuerAccountId = readExistingAccountIdByIban("Issuer IBAN: ");
+        int beneficiaryClientId = readExistingClientIdByCode("Beneficiary client code: ");
+        double amount = readPositiveDouble("Amount: ");
         LocalDate issueDate = LocalDate.now();
-        LocalDate expiryDate = issueDate.plusDays(readInt("Valid days: "));
+        LocalDate expiryDate = issueDate.plusDays(readPositiveInt("Valid days: "));
         String series = "CEC" + generateDigits(9);
 
         updateJdbc("""
@@ -1374,16 +1540,16 @@ public class Main {
     }
 
     private static void applyForCreditFromMenuJdbc() throws SQLException {
-        int borrowerId = findClientIdByCodeJdbc(readLine("Client code: "));
-        int targetAccountId = findAccountIdByIbanJdbc(readLine("Target IBAN: "));
-        CreditType type = readCreditType(readInt("""
+        int borrowerId = readExistingClientIdByCode("Client code: ");
+        int targetAccountId = readExistingAccountIdByIban("Target IBAN: ");
+        CreditType type = readCreditTypeOption("""
                 1. Personal
                 2. Mortgage
                 3. Business
-                Credit type: """));
-        double principalAmount = readDouble("Principal amount: ");
-        double annualInterestRate = readDouble("Annual interest rate: ");
-        int durationInMonths = readInt("Duration in months: ");
+                Credit type: """);
+        double principalAmount = readPositiveDouble("Principal amount: ");
+        double annualInterestRate = readNonNegativeDouble("Annual interest rate: ");
+        int durationInMonths = readPositiveInt("Duration in months: ");
         double totalAmount = principalAmount + principalAmount * annualInterestRate / 100.0 * durationInMonths / 12.0;
 
         executeInTransaction(connection -> {
@@ -1465,7 +1631,12 @@ public class Main {
                 JOIN employees e ON p.id = e.id
                 WHERE e.employee_code = ?
                 """, employeeCode);
-        System.out.println("Employee deleted from database if it existed.");
+        System.out.println("Employee deleted from database.");
+    }
+
+    private static void removeClientJdbc(String clientCode) throws SQLException {
+        updateJdbc("UPDATE clients SET active = FALSE WHERE client_code = ?", clientCode);
+        System.out.println("Client deactivated in database.");
     }
 
     private static void showAccountByIbanJdbc(String iban) throws SQLException {
@@ -1629,6 +1800,7 @@ public class Main {
 
     private static void showAllData() {
         if (databaseMode) {
+            auditService.logAction("show_all_database_data");
             showAllDatabaseData();
             return;
         }
@@ -1656,17 +1828,7 @@ public class Main {
     }
 
     private static void showAllDatabaseData() {
-        try {
-            showDatabaseClients();
-            showDatabaseEmployees();
-            showDatabaseAccounts();
-            showDatabaseCards();
-            showDatabaseCheques();
-            showDatabaseCredits();
-            showDatabaseTransactions();
-        } catch (SQLException e) {
-            throw new RuntimeException("Could not show database data: " + e.getMessage(), e);
-        }
+        databaseViewService.showAllData();
     }
 
     private static void showDatabaseClients() throws SQLException {
@@ -1941,6 +2103,11 @@ public class Main {
     }
 
     private static void printDatabaseQuery(String title, String sql, ResultSetFormatter formatter, Object... parameters) throws SQLException {
+        auditService.logAction("database_query_" + title.toLowerCase()
+                .replace("-", "")
+                .replace("from db", "")
+                .replaceAll("[^a-z0-9]+", "_")
+                .replaceAll("^_|_$", ""));
         System.out.println("\n" + title);
 
         try (Connection connection = DatabaseConnection.getInstance().getConnection();
@@ -1993,25 +2160,30 @@ public class Main {
         }
     }
 
-    private static void insertPersonJdbc(Connection connection, int id, String personType, String email, String phone) throws SQLException {
-        updateJdbc(connection, """
-                INSERT INTO persons (id, person_type, email, phone_number)
-                VALUES (?, ?, ?, ?)
-                ON DUPLICATE KEY UPDATE
-                    person_type = VALUES(person_type),
-                    email = VALUES(email),
-                    phone_number = VALUES(phone_number)
-                """, id, personType, email, phone);
+    private static int insertPersonJdbc(Connection connection, String personType, String email, String phone) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("""
+                INSERT INTO persons (person_type, email, phone_number)
+                VALUES (?, ?, ?)
+                """, PreparedStatement.RETURN_GENERATED_KEYS)) {
+            statement.setString(1, personType);
+            statement.setString(2, email);
+            statement.setString(3, phone);
+            statement.executeUpdate();
+
+            try (ResultSet generatedKeys = statement.getGeneratedKeys()) {
+                if (generatedKeys.next()) {
+                    return generatedKeys.getInt(1);
+                }
+            }
+        }
+
+        throw new SQLException("Could not generate person id.");
     }
 
     private static void insertClientJdbc(Connection connection, int id, String clientCode, String clientType, boolean active) throws SQLException {
         updateJdbc(connection, """
                 INSERT INTO clients (id, client_code, client_type, active)
                 VALUES (?, ?, ?, ?)
-                ON DUPLICATE KEY UPDATE
-                    client_code = VALUES(client_code),
-                    client_type = VALUES(client_type),
-                    active = VALUES(active)
                 """, id, clientCode, clientType, active);
     }
 
@@ -2019,13 +2191,6 @@ public class Main {
         updateJdbc(connection, """
                 INSERT INTO employees (id, employee_code, employee_type, first_name, last_name, salary, branch)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-                ON DUPLICATE KEY UPDATE
-                    employee_code = VALUES(employee_code),
-                    employee_type = VALUES(employee_type),
-                    first_name = VALUES(first_name),
-                    last_name = VALUES(last_name),
-                    salary = VALUES(salary),
-                    branch = VALUES(branch)
                 """, id, code, type, firstName, lastName, salary, branch);
     }
 
@@ -2106,6 +2271,18 @@ public class Main {
         throw new SQLException("Database value not found.");
     }
 
+    private static int nextIntJdbc(String sql) throws SQLException {
+        try (Connection connection = DatabaseConnection.getInstance().getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet resultSet = statement.executeQuery()) {
+            if (resultSet.next()) {
+                return resultSet.getInt(1);
+            }
+        }
+
+        throw new SQLException("Could not generate next id.");
+    }
+
     private static double findDoubleJdbc(String sql, Object... parameters) throws SQLException {
         try (Connection connection = DatabaseConnection.getInstance().getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
@@ -2154,21 +2331,27 @@ public class Main {
         }
     }
 
-    private static LocalDate readBirthDateFromCnp(String cnp) {
-        if (cnp == null || cnp.length() < 7) {
-            return LocalDate.now();
+    private static LocalDate parseBirthDateFromCnp(String cnp) {
+        if (cnp == null || !cnp.matches("[1-8]\\d{12}")) {
+            throw new IllegalArgumentException("CNP invalid: must contain exactly 13 digits and start with 1-8.");
         }
 
         int century = switch (cnp.charAt(0)) {
             case '1', '2' -> 1900;
+            case '3', '4' -> 1800;
             case '5', '6' -> 2000;
-            default -> 1900;
+            case '7', '8' -> 2000;
+            default -> throw new IllegalArgumentException("CNP invalid: first digit is not valid.");
         };
 
-        int year = century + Integer.parseInt(cnp.substring(1, 3));
-        int month = Integer.parseInt(cnp.substring(3, 5));
-        int day = Integer.parseInt(cnp.substring(5, 7));
-        return LocalDate.of(year, month, day);
+        try {
+            int year = century + Integer.parseInt(cnp.substring(1, 3));
+            int month = Integer.parseInt(cnp.substring(3, 5));
+            int day = Integer.parseInt(cnp.substring(5, 7));
+            return LocalDate.of(year, month, day);
+        } catch (RuntimeException e) {
+            throw new IllegalArgumentException("CNP invalid: birth date encoded in CNP is not valid.");
+        }
     }
 
     private static String generateDigits(int length) {
