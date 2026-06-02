@@ -56,6 +56,24 @@ public class AccountService {
         accountsByIban.put(iban, account);
     }
 
+    // etapa 2
+    public void openAccountJdbc(Account account) {
+        validateAccountForJdbc(account);
+
+        String iban = account.getIban().getCode();
+
+        try {
+            if (accountExistsByIban(iban)) {
+                throw new SQLException("An account with this IBAN already exists.");
+            }
+
+            insertAccountJdbc(account);
+            System.out.println("Open account JDBC completed successfully.");
+        } catch (SQLException e) {
+            throw new RuntimeException("Open account JDBC failed: " + e.getMessage(), e);
+        }
+    }
+
     public Account findByIban(String iban) {
         if (iban == null) {
             throw new IllegalArgumentException("IBAN cannot be null.");
@@ -120,6 +138,47 @@ public class AccountService {
         }
 
         account.closeAccount();
+    }
+
+    // etapa 2
+    public void closeAccountJdbc(String iban) {
+        if (iban == null || iban.isBlank()) {
+            throw new IllegalArgumentException("IBAN cannot be null or blank.");
+        }
+
+        try {
+            connection.setAutoCommit(false);
+
+            AccountCloseDbData account = getAccountForClose(iban);
+
+            if (account.balance != 0) {
+                throw new SQLException("Cannot close account with non-zero balance.");
+            }
+
+            if (!account.active) {
+                throw new SQLException("Account is already closed.");
+            }
+
+            markAccountClosed(account.id);
+
+            connection.commit();
+            System.out.println("Close account JDBC completed successfully.");
+        } catch (SQLException e) {
+            try {
+                connection.rollback();
+                System.out.println("Close account JDBC failed. Rollback executed.");
+            } catch (SQLException rollbackException) {
+                throw new RuntimeException("Rollback failed.", rollbackException);
+            }
+
+            throw new RuntimeException("Close account JDBC failed: " + e.getMessage(), e);
+        } finally {
+            try {
+                connection.setAutoCommit(true);
+            } catch (SQLException e) {
+                throw new RuntimeException("Could not reset autoCommit.", e);
+            }
+        }
     }
 
     public List<Account> getAllAccounts() {
@@ -503,6 +562,136 @@ public class AccountService {
         throw new SQLException("Account not found for IBAN: " + iban);
     }
 
+    private boolean accountExistsByIban(String iban) throws SQLException {
+        String sql = """
+                SELECT id
+                FROM accounts
+                WHERE iban = ?
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, iban);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next();
+            }
+        }
+    }
+
+    private void insertAccountJdbc(Account account) throws SQLException {
+        String sql = """
+                INSERT INTO accounts (
+                    id,
+                    iban,
+                    account_type,
+                    balance,
+                    currency,
+                    active,
+                    opening_date,
+                    client_id
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, account.getId());
+            statement.setString(2, account.getIban().getCode());
+            statement.setString(3, account.getAccountType().name());
+            statement.setDouble(4, account.getBalance());
+            statement.setString(5, account.getCurrency());
+            statement.setBoolean(6, account.isActive());
+            statement.setDate(7, java.sql.Date.valueOf(account.getOpeningDate()));
+            statement.setInt(8, account.getOwner().getId());
+
+            int affectedRows = statement.executeUpdate();
+
+            if (affectedRows == 0) {
+                throw new SQLException("Could not insert account.");
+            }
+        }
+    }
+
+    private AccountCloseDbData getAccountForClose(String iban) throws SQLException {
+        String sql = """
+                SELECT id, balance, active
+                FROM accounts
+                WHERE iban = ?
+                FOR UPDATE
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, iban);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    return new AccountCloseDbData(
+                            resultSet.getInt("id"),
+                            resultSet.getDouble("balance"),
+                            resultSet.getBoolean("active")
+                    );
+                }
+            }
+        }
+
+        throw new SQLException("Account not found for IBAN: " + iban);
+    }
+
+    private void markAccountClosed(int accountId) throws SQLException {
+        String sql = """
+                UPDATE accounts
+                SET active = false
+                WHERE id = ?
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, accountId);
+
+            int affectedRows = statement.executeUpdate();
+
+            if (affectedRows == 0) {
+                throw new SQLException("Could not close account with id: " + accountId);
+            }
+        }
+    }
+
+    private void validateAccountForJdbc(Account account) {
+        if (account == null) {
+            throw new IllegalArgumentException("Account cannot be null.");
+        }
+
+        if (account.getId() <= 0) {
+            throw new IllegalArgumentException("Account id must be positive.");
+        }
+
+        if (account.getIban() == null || account.getIban().getCode() == null || account.getIban().getCode().isBlank()) {
+            throw new IllegalArgumentException("IBAN cannot be null or blank.");
+        }
+
+        if (account.getAccountType() == null) {
+            throw new IllegalArgumentException("Account type cannot be null.");
+        }
+
+        if (account.getBalance() < 0) {
+            throw new IllegalArgumentException("Balance cannot be negative.");
+        }
+
+        if (account.getCurrency() == null || account.getCurrency().isBlank()) {
+            throw new IllegalArgumentException("Currency cannot be null or blank.");
+        }
+
+        if (account.getOpeningDate() == null) {
+            throw new IllegalArgumentException("Opening date cannot be null.");
+        }
+
+        if (account.getOwner() == null) {
+            throw new IllegalArgumentException("Account owner cannot be null.");
+        }
+
+        if (account.getOwner().getId() <= 0) {
+            throw new IllegalArgumentException("Account owner id must be positive.");
+        }
+    }
+
     private void updateAccountBalance(int accountId, double amountChange) throws SQLException {
         String sql = """
                 UPDATE accounts
@@ -672,6 +861,18 @@ public class AccountService {
             this.id = id;
             this.balance = balance;
             this.currency = currency;
+        }
+    }
+
+    private static class AccountCloseDbData {
+        private final int id;
+        private final double balance;
+        private final boolean active;
+
+        private AccountCloseDbData(int id, double balance, boolean active) {
+            this.id = id;
+            this.balance = balance;
+            this.active = active;
         }
     }
 
